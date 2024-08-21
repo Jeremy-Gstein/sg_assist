@@ -4,7 +4,7 @@
 ### (sg_assist)
 Discord bot to assist with repetitive discord actions.
 
-https://discord.com/oauth2/authorize?client_id=1274908402203627602
+- [invite to server](https://discord.com/oauth2/authorize?client_id=1274908402203627602)
 ---
 
 ## Build the app locally: 
