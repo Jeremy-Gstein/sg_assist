@@ -6,3 +6,6 @@ pub use megajackpot::*;
 
 mod vault;
 pub use vault::*;
+
+mod keysdone;
+pub use keysdone::*;
