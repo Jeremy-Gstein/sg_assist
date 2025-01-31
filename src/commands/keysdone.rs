@@ -16,6 +16,7 @@ pub async fn fetch_character_data() -> Result<Value, reqwest::Error> {
     Ok(response)
 }
 
+/// Get this weeks keystone completion leaderboard
 #[poise::command(slash_command, broadcast_typing)]
 pub async fn keysdone(ctx: Context<'_>) -> Result<(), Error> {
     let response = fetch_character_data().await?;
