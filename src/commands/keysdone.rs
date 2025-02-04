@@ -59,7 +59,7 @@ pub async fn keysdone(ctx: Context<'_>) -> Result<(), Error> {
             //}
             //msg_send.push_str("\n"); // Add a blank line between characters
         }
-        msg_send.push_str(&format!("Started Tracking Last Weekly Reset: <t:1738076400:R>"))
+        msg_send.push_str(&format!("Started Tracking Last Weekly Reset: <t:1738681200:R>"))
     } else {
         msg_send = "No character data available.".to_string();
     }
