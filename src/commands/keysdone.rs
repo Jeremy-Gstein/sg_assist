@@ -43,8 +43,15 @@ pub async fn keysdone(ctx: Context<'_>) -> Result<(), Error> {
 
         sorted_characters.sort_by(|a, b| b.2.cmp(&a.2));
         msg_send.push_str("## | Mythic Plus Leaderboard |\n");
+        // use index to check # of characters does NOT cause a discord message length error.
+        let mut index = 0;
         for (name, _dungeons, dungeon_count) in sorted_characters {
-            msg_send.push_str(&format!("### > - {} ~ Keys completed: {}\n", name, dungeon_count));
+            if index < 9 {
+                msg_send.push_str(&format!("### > - {} ~ Keys completed: {}\n", name, dungeon_count));
+                index += 1;
+            } else {
+                break;
+            }
             //for dungeon in dungeons {
             //    let dungeon_id = dungeon["dungeon"].as_u64().unwrap_or(0);
             //    let level = dungeon["level"].as_u64().unwrap_or(0);
