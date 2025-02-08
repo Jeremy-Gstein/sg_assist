@@ -9,7 +9,7 @@ Discord bot to assist with repetitive discord actions.
 
 ## Build the app locally: 
 - clone the repo
-- make sure `$PWD` == `$PWD/sg_assistant`
+- make sure `$PWD` == `$PWD/sg_assist`
 
 Build the Docker image:
  ```shell
