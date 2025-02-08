@@ -9,3 +9,6 @@ pub use vault::*;
 
 mod keysdone;
 pub use keysdone::*;
+
+mod help;
+pub use help::*;
