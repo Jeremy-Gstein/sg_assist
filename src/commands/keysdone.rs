@@ -4,7 +4,7 @@ use crate::Context;
 use crate::Error;
 use chrono::{DateTime, Utc};
 
-pub async fn fetch_period_id() -> Result<Value, reqwest::Error> {
+async fn fetch_period_id() -> Result<Value, reqwest::Error> {
     let client = reqwest::Client::new();
     let response = client
         .get("https://raider.io/api/v1/periods")
@@ -16,7 +16,7 @@ pub async fn fetch_period_id() -> Result<Value, reqwest::Error> {
 }
 
 // WoWAudit Roster Mythic+ Data
-pub async fn fetch_character_data() -> Result<Value, reqwest::Error> {
+async fn fetch_character_data() -> Result<Value, reqwest::Error> {
     let token = std::env::var("WOWAUDIT_TOKEN").expect("missing WOWAUDIT_TOKEN");
     let client = reqwest::Client::new();
     let response = client

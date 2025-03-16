@@ -12,3 +12,9 @@ pub use keysdone::*;
 
 mod help;
 pub use help::*;
+
+mod mykeys;
+pub use mykeys::*;
+
+mod roster;
+pub use roster::*;

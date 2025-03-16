@@ -14,7 +14,7 @@ async fn main() {
 
     let framework = poise::Framework::builder()
         .options(poise::FrameworkOptions {
-            commands: vec![jackpot(), megajackpot(), vault(), keysdone(), help()], 
+            commands: vec![roster(), mykeys(), jackpot(), megajackpot(), vault(), keysdone(), help()], 
             ..Default::default()
         })
         .setup(|ctx, _ready, framework| {
