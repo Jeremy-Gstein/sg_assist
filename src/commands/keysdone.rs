@@ -4,9 +4,6 @@ use crate::Context;
 use crate::Error;
 use chrono::{DateTime, Utc};
 
-
-
-
 pub async fn fetch_period_id() -> Result<Value, reqwest::Error> {
     let client = reqwest::Client::new();
     let response = client
@@ -17,8 +14,6 @@ pub async fn fetch_period_id() -> Result<Value, reqwest::Error> {
         .await?;
     Ok(response)
 }
-
-
 
 // WoWAudit Roster Mythic+ Data
 pub async fn fetch_character_data() -> Result<Value, reqwest::Error> {
@@ -73,9 +68,16 @@ pub async fn keysdone(ctx: Context<'_>) -> Result<(), Error> {
 
         sorted_characters.sort_by(|a, b| b.2.cmp(&a.2));
         msg_send.push_str("## | Mythic Plus Leaderboard |\n");
+        // use total_runs to track total OUTSIDE of index for all chars on roster.
+        let mut total_runs = 0;
+        for (_name, _dungeons, dungeon_count) in &sorted_characters {
+            total_runs += dungeon_count;
+        }  
+        msg_send.push_str(&format!("## > - Total Runs: {}\n", total_runs));
+
         // use index to check # of characters does NOT cause a discord message length error.
         let mut index = 0;
-        for (name, _dungeons, dungeon_count) in sorted_characters {
+        for (name, _dungeons, dungeon_count) in &sorted_characters {
             if index < 9 {
                 msg_send.push_str(&format!("### > - {} ~ Keys completed: {}\n", name, dungeon_count));
                 index += 1;
@@ -91,7 +93,7 @@ pub async fn keysdone(ctx: Context<'_>) -> Result<(), Error> {
         }
         msg_send.push_str(&format!("Started Tracking Last Weekly Reset: {}", formatted_date))
     } else {
-        msg_send = "No character data available.".to_string();
+        msg_send = "No data available.".to_string();
     }
 
     ctx.say(msg_send).await?;
