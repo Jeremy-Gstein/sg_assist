@@ -44,6 +44,16 @@ fn rename_dungeon(id: i32, mapping: &HashMap<i32, String>) -> String {
     mapping.get(&id).cloned().unwrap_or_else(|| format!("Unknown Dungeon (ID: {})", id))
 }
 
+// let user type Coolname instead of Cöölname (no need to type alt codes)
+fn check_alt_codes(name: &str) -> String {
+    name.to_lowercase()
+        .replace("ö", "o")
+        .chars()
+        .filter(|c| c.is_alphanumeric())
+        .collect()
+}
+
+
 /// Search for a character's weekly completed keys (must be on the wowaudit use /roster)
 #[poise::command(slash_command, broadcast_typing)]
 pub async fn mykeys(
@@ -53,9 +63,14 @@ pub async fn mykeys(
     let response = fetch_character_data().await?;
     let mut msg_send = String::new();
     let dungeon_mapping = get_dungeon_mapping();
+    let check_name = check_alt_codes(&name);
 
     if let Some(characters) = response["characters"].as_array() {
-        if let Some(character) = characters.iter().find(|c| c["name"].as_str().unwrap_or("").to_lowercase() == name.to_lowercase()) {
+        if let Some(character) = characters.iter().find(|c| {
+            let char_name = c["name"].as_str().unwrap_or("");
+            check_alt_codes(char_name) == check_name
+        }) 
+        {
             let char_name = character["name"].as_str().unwrap_or("Unknown");
             let empty_vec = Vec::new();
             let dungeons_done = character["data"]["dungeons_done"].as_array().unwrap_or(&empty_vec);
