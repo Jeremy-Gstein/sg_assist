@@ -17,7 +17,7 @@ async fn fetch_roster_data() -> Result<Value, reqwest::Error> {
     Ok(response)
 }
 
-#[poise::command(slash_command, broadcast_typing)]
+#[poise::command(interaction_context = "Guild|BotDm|PrivateChannel", slash_command, broadcast_typing)]
 pub async fn roster(ctx: Context<'_>) -> Result<(), Error> {
     let response = fetch_roster_data().await?;
     let mut msg_send = String::new();

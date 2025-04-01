@@ -36,7 +36,7 @@ fn extract_id(input: &str) -> Option<&str> {
 }
 
 /// Update wowaudit raidbot sim for RClootcouncil. 
-#[poise::command(slash_command, broadcast_typing)]
+#[poise::command(interaction_context = "Guild|BotDm|PrivateChannel", slash_command, broadcast_typing)]
 pub async fn updatesim(
     ctx: Context<'_>,
     #[description = "Character name on roster"] name: String, 
