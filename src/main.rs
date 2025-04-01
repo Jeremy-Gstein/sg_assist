@@ -3,14 +3,14 @@ use poise::serenity_prelude as serenity;
 mod commands;
 use commands::*;
 
-struct Data {} // User data, which is stored and accessible in all command invocations
 type Error = Box<dyn std::error::Error + Send + Sync>;
 type Context<'a> = poise::Context<'a, Data, Error>;
+struct Data {} // User data, which is stored and accessible in all command invocations
 
 #[tokio::main]
 async fn main() {
     let token = std::env::var("DISCORD_TOKEN").expect("missing DISCORD_TOKEN");
-    let intents = serenity::GatewayIntents::non_privileged();
+    let intents = serenity::GatewayIntents::non_privileged() | serenity::GatewayIntents::MESSAGE_CONTENT | serenity::GatewayIntents::DIRECT_MESSAGES;
 
     let framework = poise::Framework::builder()
         .options(poise::FrameworkOptions {

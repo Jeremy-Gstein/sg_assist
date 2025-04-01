@@ -3,7 +3,7 @@ use crate::Error;
 
 
 /// How to use bot with examples. 
-#[poise::command(slash_command, broadcast_typing)]
+#[poise::command(interaction_context = "Guild|BotDm|PrivateChannel", slash_command, broadcast_typing)]
 pub async fn help(ctx: Context<'_>) -> Result<(), Error> {
     let help = "`/help` - list of commands. if you need any help message or ping `@.shodo`";
     let updatesim_help = "`/updatesim` - Update your characters Wowaudit RCLootcouncil Wishlist.";
