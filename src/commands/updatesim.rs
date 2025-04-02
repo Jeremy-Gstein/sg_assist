@@ -1,9 +1,22 @@
+use poise::Modal;
 use reqwest;
 use serde_json::json;
-use crate::Context;
+use crate::Data;
 use crate::Error;
+type ApplicationContext<'a> = poise::ApplicationContext<'a, Data, Error>;
+
+
+// Modal struct to collect inputs
+#[derive(Debug, Default, Modal)]
+struct UpdateSimModal {
+    #[name = "Enter Character Name"]
+    name: String,
+    #[name = "Raidbots ID or Full URL"]
+    id: String,
+}
 
 async fn update_wishlist(id: &str, name: &str) -> Result<serde_json::Value, reqwest::Error> {
+    // Existing function remains unchanged
     let token = std::env::var("WOWAUDIT_TOKEN").expect("missing WOWAUDIT_TOKEN");
     let client = reqwest::Client::new();
     let payload = json!({
@@ -27,31 +40,36 @@ async fn update_wishlist(id: &str, name: &str) -> Result<serde_json::Value, reqw
 }
 
 fn extract_id(input: &str) -> Option<&str> {
-    // if input dosent have a / assume its been formated
     if !input.contains('/') {
         return Some(input);
     }
-    // return end of raidbots link.
     input.split('/').last()
 }
 
-/// Update wowaudit raidbot sim for RClootcouncil. 
+/// Update wowaudit raidbot sim for RClootcouncil.
 #[poise::command(slash_command, broadcast_typing)]
-pub async fn updatesim(
-    ctx: Context<'_>,
-    #[description = "Character name on roster"] name: String, 
-    #[description = "Raidbots ID or full URL"] id: String, 
-) -> Result<(), Error> {
-    let mut msg_send = String::new();
-    let id = extract_id(&id).ok_or_else(|| Error::from("Invalid ID or URL"))?;
-    match update_wishlist(id, &name).await {
-        Ok(send_wishlist) => {
-            msg_send.push_str(&format!("Status: {} for {}'s report {}.", send_wishlist, name, id));
-        },
-        Err(e) => {
-            msg_send.push_str(&format!("Error formatting: {}", e));
+pub async fn updatesim(ctx: ApplicationContext<'_>) -> Result<(), Error> {
+    // Execute modal to get user input
+    let modal_data = poise::execute_modal(
+        ctx,
+        Some(UpdateSimModal::default()),
+        None,
+    )
+    .await?;
+
+    if let Some(data) = modal_data {
+        let id = extract_id(&data.id).ok_or_else(|| Error::from("Invalid ID or URL"))?;
+        match update_wishlist(id, &data.name).await {
+            Ok(send_wishlist) => {
+                ctx.say(format!("Status: {} for {}'s report {}.", send_wishlist, data.name, id)).await?;
+            },
+            Err(e) => {
+                ctx.say(format!("Error formatting: {}", e)).await?;
+            }
         }
+    } else {
+        ctx.say("Modal input was cancelled or not provided.").await?;
     }
-    ctx.say(msg_send).await?;
+
     Ok(())
 }
