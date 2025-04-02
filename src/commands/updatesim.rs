@@ -8,20 +8,18 @@ type ApplicationContext<'a> = poise::ApplicationContext<'a, Data, Error>;
 
 // Modal struct to collect inputs
 #[derive(Debug, Default, Modal)]
+#[name = "Submit Droptimizer"]
 struct UpdateSimModal {
-    #[name = "Enter Character Name"]
-    name: String,
-    #[name = "Raidbots ID or Full URL"]
+    #[name  = "Submit your Raidbots Droptimizer to Wowaudit"]
+    #[placeholder = "Example: https://www.raidbots.com/simbot/report/vqBr9"]
     id: String,
 }
 
-async fn update_wishlist(id: &str, name: &str) -> Result<serde_json::Value, reqwest::Error> {
-    // Existing function remains unchanged
+async fn update_wishlist(id: &str) -> Result<serde_json::Value, reqwest::Error> {
     let token = std::env::var("WOWAUDIT_TOKEN").expect("missing WOWAUDIT_TOKEN");
     let client = reqwest::Client::new();
     let payload = json!({
         "report_id": id,
-        "character_name": name,
         "configuration_name": "Single Target",
         "replace_manual_edits": true,
         "clear_conduits": true
@@ -59,9 +57,16 @@ pub async fn updatesim(ctx: ApplicationContext<'_>) -> Result<(), Error> {
 
     if let Some(data) = modal_data {
         let id = extract_id(&data.id).ok_or_else(|| Error::from("Invalid ID or URL"))?;
-        match update_wishlist(id, &data.name).await {
+        match update_wishlist(id).await {
+            
             Ok(send_wishlist) => {
-                ctx.say(format!("Status: {} for {}'s report {}.", send_wishlist, data.name, id)).await?;
+                if send_wishlist["created"] == true {
+                    ctx.say("Finished updating Droptimizer")
+                    .await?;
+                } else {
+                    ctx.say("Error.. Please Try Again")
+                    .await?;
+                }
             },
             Err(e) => {
                 ctx.say(format!("Error formatting: {}", e)).await?;
