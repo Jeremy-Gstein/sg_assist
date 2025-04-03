@@ -64,7 +64,7 @@ pub async fn updatesim(ctx: ApplicationContext<'_>) -> Result<(), Error> {
                     ctx.say("Finished updating Droptimizer")
                     .await?;
                 } else {
-                    ctx.say("Error.. Please Try Again")
+                    ctx.say(format!("Error: {}.. Please Try Again", send_wishlist["base"]))
                     .await?;
                 }
             },
