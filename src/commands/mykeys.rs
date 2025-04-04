@@ -91,19 +91,30 @@ pub async fn mykeys(
                 let dungeon_name = rename_dungeon(dungeon_id.try_into().unwrap(), &dungeon_mapping);
                 msg_send.push_str(&format!("+{} {} | ", level, dungeon_name));
             }
+            // send the reply with keys and raider.io search
+            ctx.send(poise::CreateReply::default()
+                .embed(CreateEmbed::new()
+                    .title(format!("{}", msg_data))
+                    .description(format!("{}", msg_send))
+                    // we use raider.io seach becasue we dont know the players server.
+                    .field("More", format!("Search on [Raider.io](https://raider.io/search?type=character&name[0][contains]={}&sort[name]=desc&page=1&pageSize=40)", &name), false)
+                    .colour(poise::serenity_prelude::Colour::from_rgb(114, 137, 218)), 
+                )).await?;
+
+
         } else {
+            // send the error message 
             msg_send = format!("No data found for player: {}", name);
+            ctx.send(poise::CreateReply::default()
+                .embed(CreateEmbed::new()
+                    .title("Error")
+                    .description(format!("{}", msg_send)),
+                )).await?;
         }
     } else {
+        // internal error printed to stdout
         msg_send = "No data available.".to_string();
+        eprint!("{}", msg_send);
     }
-    ctx.send(poise::CreateReply::default()
-        .embed(CreateEmbed::new()
-            .title(format!("{}", msg_data))
-            .description(format!("{}", msg_send))
-            .colour(poise::serenity_prelude::Colour::from_rgb(114, 137, 218)), 
-        )).await?;
-
-
-    Ok(())
+   Ok(())
 }
