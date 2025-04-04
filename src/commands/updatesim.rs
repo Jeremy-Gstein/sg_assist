@@ -45,7 +45,7 @@ fn extract_id(input: &str) -> Option<&str> {
 }
 
 /// Update wowaudit raidbot sim for RClootcouncil.
-#[poise::command(slash_command, broadcast_typing)]
+#[poise::command(slash_command, broadcast_typing, ephemeral)]
 pub async fn updatesim(ctx: ApplicationContext<'_>) -> Result<(), Error> {
     // Execute modal to get user input
     let modal_data = poise::execute_modal(

@@ -17,7 +17,7 @@ pub async fn fetch_character_data() -> Result<Value, reqwest::Error> {
 }
 
 /// Search for a character's weekly vault status (must be on the wowaudit roster)
-#[poise::command(slash_command, broadcast_typing)]
+#[poise::command(slash_command, broadcast_typing, ephemeral)]
 pub async fn vault(
     ctx: Context<'_>,
     #[description = "Character name to search for"] name: String,

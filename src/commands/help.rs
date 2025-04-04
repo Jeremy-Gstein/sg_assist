@@ -2,7 +2,7 @@ use crate::Context;
 use crate::Error;
 
 /// How to use bot with examples.
-#[poise::command(slash_command, broadcast_typing)]
+#[poise::command(slash_command, broadcast_typing, ephemeral)]
 pub async fn help(ctx: Context<'_>) -> Result<(), Error> {
     // Build the embed without mutability
     let embed = poise::serenity_prelude::CreateEmbed::default()

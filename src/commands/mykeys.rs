@@ -55,7 +55,7 @@ fn check_alt_codes(name: &str) -> String {
 
 
 /// Search for a character's weekly completed keys (must be on the wowaudit use /roster)
-#[poise::command(slash_command, broadcast_typing)]
+#[poise::command(slash_command, broadcast_typing, ephemeral)]
 pub async fn mykeys(
     ctx: Context<'_>,
     #[description = "Character name to search for"] name: String,
