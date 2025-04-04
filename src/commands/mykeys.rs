@@ -1,3 +1,4 @@
+use poise::serenity_prelude::CreateEmbed;
 use reqwest;
 use serde_json::Value;
 use crate::Context;
@@ -62,6 +63,7 @@ pub async fn mykeys(
 ) -> Result<(), Error> {
     let response = fetch_character_data().await?;
     let mut msg_send = String::new();
+    let mut msg_data = String::new();
     let dungeon_mapping = get_dungeon_mapping();
     let check_name = check_alt_codes(&name);
 
@@ -74,27 +76,20 @@ pub async fn mykeys(
             let char_name = character["name"].as_str().unwrap_or("Unknown");
             let empty_vec = Vec::new();
             let dungeons_done = character["data"]["dungeons_done"].as_array().unwrap_or(&empty_vec);
-            msg_send.push_str(&format!("## Mythic+ Data for {}\n", char_name));
+            msg_data.push_str(&format!("Mythic+ Data for {}\n", char_name));
             let valid_dungeons: Vec<_> = dungeons_done
                 .iter()
                 .filter(|d| d["level"].as_u64().unwrap_or(0) >= 1)
                 .collect();
             
             let dungeon_count = valid_dungeons.len();
-            msg_send.push_str(&format!("### Total Keys Completed: {}\n", dungeon_count));
-            let mut index = 0; 
+            msg_data.push_str(&format!("Total Keys Completed: {}\n", dungeon_count));
+            msg_send.push_str("| ");
             for dungeon in valid_dungeons {
                 let dungeon_id = dungeon["dungeon"].as_u64().unwrap_or(0);
                 let level = dungeon["level"].as_u64().unwrap_or(0);
                 let dungeon_name = rename_dungeon(dungeon_id.try_into().unwrap(), &dungeon_mapping);
-                // print 4 dungeons per new line
-                if index >= 3 {
-                    msg_send.push_str(&format!("+{} {} |\n", level, dungeon_name));
-                    index = 0;
-                } else {
-                    msg_send.push_str(&format!("+{} {} | ", level, dungeon_name));
-                    index += 1;
-                }
+                msg_send.push_str(&format!("+{} {} | ", level, dungeon_name));
             }
         } else {
             msg_send = format!("No data found for player: {}", name);
@@ -102,8 +97,13 @@ pub async fn mykeys(
     } else {
         msg_send = "No data available.".to_string();
     }
+    ctx.send(poise::CreateReply::default()
+        .embed(CreateEmbed::new()
+            .title(format!("{}", msg_data))
+            .description(format!("{}", msg_send))
+            .colour(poise::serenity_prelude::Colour::from_rgb(114, 137, 218)), 
+        )).await?;
 
-    ctx.say(msg_send).await?;
 
     Ok(())
 }
