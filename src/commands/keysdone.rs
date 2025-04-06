@@ -3,7 +3,7 @@ use serde_json::Value;
 use crate::Context;
 use crate::Error;
 use chrono::{DateTime, Utc};
-use poise::builtins::paginate;
+use crate::paginate;
 
 /// Fetch the current period ID from Raider.IO API
 async fn fetch_period_id() -> Result<Value, reqwest::Error> {
@@ -99,6 +99,8 @@ pub async fn keysdone(ctx: Context<'_>) -> Result<(), Error> {
 
     // Use paginate to send paginated embeds
     paginate(ctx, &pages).await?;
+
+
 
     Ok(())
 }
