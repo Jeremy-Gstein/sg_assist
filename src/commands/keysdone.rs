@@ -3,6 +3,8 @@ use serde_json::Value;
 use crate::Context;
 use crate::Error;
 use chrono::{DateTime, Utc};
+// use poise::serenity_prelude as serenity;
+use futures::future::BoxFuture;
 use crate::paginate;
 
 /// Fetch the current period ID from Raider.IO API
@@ -31,16 +33,12 @@ async fn fetch_character_data() -> Result<Value, reqwest::Error> {
     Ok(response)
 }
 
-/// Get this week's keystone completion leaderboard, with pagination
-#[poise::command(slash_command, broadcast_typing)]
-pub async fn keysdone(ctx: Context<'_>) -> Result<(), Error> {
-    let get_id = fetch_period_id().await?;
-    let response = fetch_character_data().await?;
-
-    // Parse the starting date of the current period
-    let date_str = get_id["periods"][0]["current"]["start"].as_str();
-    let datetime = DateTime::parse_from_rfc3339(date_str.expect("JSON Value not found"))
-        .expect("Failed to parse timestamp")
+/// Function to generate pages from data
+fn generate_pages(data: &Value, period_info: &Value) -> Result<Vec<String>, Error> {
+    let date_str = period_info["periods"][0]["current"]["start"]
+        .as_str()
+        .ok_or("Missing period start date")?;
+    let datetime = DateTime::parse_from_rfc3339(date_str)?
         .with_timezone(&Utc);
     let unix_timestamp = datetime.timestamp();
     let formatted_date = format!("<t:{}:R>", unix_timestamp);
@@ -48,18 +46,16 @@ pub async fn keysdone(ctx: Context<'_>) -> Result<(), Error> {
     let mut leaderboard: Vec<(String, usize)> = Vec::new();
     let mut total_runs: usize = 0;
 
-    // Extract and sort the character data
-    if let Some(characters) = response["characters"].as_array() {
+    if let Some(characters) = data["characters"].as_array() {
         for character in characters {
             if let (Some(name), Some(dungeons_done)) = (
                 character["name"].as_str(),
                 character["data"]["dungeons_done"].as_array(),
             ) {
-                let valid_dungeons: Vec<_> = dungeons_done
+                let dungeon_count = dungeons_done
                     .iter()
                     .filter(|d| d["level"].as_u64().unwrap_or(0) >= 1)
-                    .collect();
-                let dungeon_count = valid_dungeons.len();
+                    .count();
 
                 if dungeon_count > 0 {
                     leaderboard.push((name.to_string(), dungeon_count));
@@ -67,13 +63,10 @@ pub async fn keysdone(ctx: Context<'_>) -> Result<(), Error> {
                 }
             }
         }
-
-        // Sort leaderboard by dungeon count in descending order
         leaderboard.sort_by(|a, b| b.1.cmp(&a.1));
     }
 
-    // Generate paginated pages (chunks of 8 entries)
-    let string_pages: Vec<String> = leaderboard
+    Ok(leaderboard
         .chunks(8)
         .enumerate()
         .map(|(page_idx, chunk)| {
@@ -86,22 +79,39 @@ pub async fn keysdone(ctx: Context<'_>) -> Result<(), Error> {
             format!(
                 "**Mythic+ Leaderboard - Page {}/{}**\n\n{}\n\n**Total Runs:** {}\n**Started Tracking Since:** {}",
                 page_idx + 1,
-                (leaderboard.len() + 7) / 8, // Calculate total pages
+                (leaderboard.len() + 7) / 8,
                 entries,
                 total_runs,
                 formatted_date
             )
         })
-        .collect();
-
-    // Convert Vec<String> to Vec<&str> for paginate
-    let pages: Vec<&str> = string_pages.iter().map(String::as_str).collect();
-
-    // Use paginate to send paginated embeds
-    paginate(ctx, &pages).await?;
+        .collect())
+}
 
 
 
+/// Get this week's keystone completion leaderboard
+#[poise::command(slash_command, broadcast_typing)]
+pub async fn keysdone(ctx: Context<'_>) -> Result<(), Error> {
+    // Initial fetch
+    let period_info = fetch_period_id().await?;
+    let initial_data = fetch_character_data().await?;
+    let initial_pages = generate_pages(&initial_data, &period_info)?;
+
+    // Create refresh closure with static lifetime
+    let refresh_closure = {
+        let http = ctx.serenity_context().http.clone();
+        move || {
+            let _http = http.clone();
+            Box::pin(async move {
+                let new_data = fetch_character_data().await?;
+                let new_period = fetch_period_id().await?;
+                generate_pages(&new_data, &new_period)
+            }) as BoxFuture<'static, Result<Vec<String>, Error>>
+        }
+    };
+
+    paginate(ctx, initial_pages, refresh_closure).await?;
     Ok(())
 }
 
