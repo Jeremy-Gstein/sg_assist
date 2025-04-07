@@ -1,11 +1,10 @@
+use poise::Context;
+use crate::{Data, Error};
 use reqwest;
 use serde_json::Value;
-use crate::Context;
-use crate::Error;
 use chrono::{DateTime, Utc};
-// use poise::serenity_prelude as serenity;
-use futures::future::BoxFuture;
-use crate::paginate;
+use crate::paginate;  // Ensure paginate function is imported
+
 
 /// Fetch the current period ID from Raider.IO API
 async fn fetch_period_id() -> Result<Value, reqwest::Error> {
@@ -88,11 +87,9 @@ fn generate_pages(data: &Value, period_info: &Value) -> Result<Vec<String>, Erro
         .collect())
 }
 
-
-
 /// Get this week's keystone completion leaderboard
 #[poise::command(slash_command, broadcast_typing)]
-pub async fn keysdone(ctx: Context<'_>) -> Result<(), Error> {
+pub async fn keysdone(ctx: Context<'_, Data, Error>) -> Result<(), Error> {
     // Initial fetch
     let period_info = fetch_period_id().await?;
     let initial_data = fetch_character_data().await?;
@@ -107,10 +104,11 @@ pub async fn keysdone(ctx: Context<'_>) -> Result<(), Error> {
                 let new_data = fetch_character_data().await?;
                 let new_period = fetch_period_id().await?;
                 generate_pages(&new_data, &new_period)
-            }) as BoxFuture<'static, Result<Vec<String>, Error>>
+            }) as poise::BoxFuture<'static, Result<Vec<String>, Error>>
         }
     };
 
+    // Start pagination with the pages and refresh closure
     paginate(ctx, initial_pages, refresh_closure).await?;
     Ok(())
 }
