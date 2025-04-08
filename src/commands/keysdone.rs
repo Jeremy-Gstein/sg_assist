@@ -88,7 +88,7 @@ fn generate_pages(data: &Value, period_info: &Value) -> Result<Vec<String>, Erro
 }
 
 /// Get this week's keystone completion leaderboard
-#[poise::command(slash_command, broadcast_typing)]
+#[poise::command(slash_command, on_error = "error_handler",)] 
 pub async fn keysdone(ctx: Context<'_, Data, Error>) -> Result<(), Error> {
     // Initial fetch
     let period_info = fetch_period_id().await?;
@@ -113,3 +113,6 @@ pub async fn keysdone(ctx: Context<'_, Data, Error>) -> Result<(), Error> {
     Ok(())
 }
 
+pub async fn error_handler(error: poise::FrameworkError<'_, Data, Error>) {
+    println!("[WARN] - error: {:?}, error", error);
+}
