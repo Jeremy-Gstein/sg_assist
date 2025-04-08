@@ -2,8 +2,10 @@ use poise::serenity_prelude as serenity;
 
 mod commands;
 use commands::*;
-#[derive(Debug, Clone)]
+
+#[derive(Debug)]
 pub struct Data {} // User data, which is stored and accessible in all command invocations
+
 type Error = Box<dyn std::error::Error + Send + Sync>;
 type Context<'a> = poise::Context<'a, Data, Error>;
 
@@ -14,7 +16,7 @@ async fn main() {
 
     let framework = poise::Framework::builder()
         .options(poise::FrameworkOptions {
-            commands: vec![cleanup(), updatesim(), roster(), mykeys(), vault(), keysdone(), help()], 
+            commands: vec![updatesim(), roster(), mykeys(), vault(), keysdone(), help()], 
             ..Default::default()
         })
         .setup(|ctx, _ready, framework| {
