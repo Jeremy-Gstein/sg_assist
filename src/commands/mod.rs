@@ -1,9 +1,3 @@
-mod jackpot;
-pub use jackpot::*;
-
-mod megajackpot;
-pub use megajackpot::*;
-
 mod vault;
 pub use vault::*;
 
@@ -21,3 +15,6 @@ pub use roster::*;
 
 mod updatesim;
 pub use updatesim::*;
+
+mod paginate;
+pub use paginate::*;

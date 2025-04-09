@@ -2,7 +2,7 @@ use serde_json::Value;
 use reqwest;
 use crate::Context;
 use crate::Error;
-
+use poise::serenity_prelude::CreateEmbed;
 
 async fn fetch_roster_data() -> Result<Value, reqwest::Error> {
     let token = std::env::var("WOWAUDIT_TOKEN").expect("missing WOWAUDIT_TOKEN");
@@ -17,12 +17,14 @@ async fn fetch_roster_data() -> Result<Value, reqwest::Error> {
     Ok(response)
 }
 
+<<<<<<< HEAD
 #[poise::command(interaction_context = "Guild|BotDm|PrivateChannel", slash_command, broadcast_typing)]
+=======
+#[poise::command(slash_command, broadcast_typing, ephemeral)]
+>>>>>>> ed35067c231c77e8bd00490103c0551eaff4bfe8
 pub async fn roster(ctx: Context<'_>) -> Result<(), Error> {
     let response = fetch_roster_data().await?;
     let mut msg_send = String::new();
-
-    msg_send.push_str("## Wowaudit Roster\n");
 
     if let Some(characters) = response.as_array() {
         let mut names: Vec<String> = characters
@@ -52,8 +54,13 @@ pub async fn roster(ctx: Context<'_>) -> Result<(), Error> {
     } else {
         msg_send = "No roster data available.".to_string();
     }
-
-    ctx.say(msg_send).await?;
+    msg_send.push_str("\n\nView the full roster on [Wowaudit](https://wowaudit.com/us/stormrage/seems-good/main/roster)");
+    ctx.send(poise::CreateReply::default()
+        .embed(CreateEmbed::new()
+            .title("Wowaudit Roster")
+            .description(msg_send)
+        )
+    ).await?;
 
     Ok(())
 }
