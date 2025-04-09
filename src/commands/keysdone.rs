@@ -1,9 +1,9 @@
-use poise::Context;
-use crate::{Data, Error};
+use crate::{Context, Error};
+use poise::BoxFuture;
 use reqwest;
 use serde_json::Value;
 use chrono::{DateTime, Utc};
-use crate::paginate;  // Ensure paginate function is imported
+use crate::paginate; 
 
 
 /// Fetch the current period ID from Raider.IO API
@@ -87,9 +87,11 @@ fn generate_pages(data: &Value, period_info: &Value) -> Result<Vec<String>, Erro
         .collect())
 }
 
+
+
 /// Get this week's keystone completion leaderboard
-#[poise::command(slash_command, on_error = "error_handler",)] 
-pub async fn keysdone(ctx: Context<'_, Data, Error>) -> Result<(), Error> {
+#[poise::command(slash_command,)]
+pub async fn keysdone(ctx: Context<'_>) -> Result<(), Error> {
     // Initial fetch
     let period_info = fetch_period_id().await?;
     let initial_data = fetch_character_data().await?;
@@ -104,15 +106,10 @@ pub async fn keysdone(ctx: Context<'_, Data, Error>) -> Result<(), Error> {
                 let new_data = fetch_character_data().await?;
                 let new_period = fetch_period_id().await?;
                 generate_pages(&new_data, &new_period)
-            }) as poise::BoxFuture<'static, Result<Vec<String>, Error>>
+            }) as BoxFuture<'static, Result<Vec<String>, Error>>
         }
     };
 
-    // Start pagination with the pages and refresh closure
     paginate(ctx, initial_pages, refresh_closure).await?;
     Ok(())
-}
-
-pub async fn error_handler(error: poise::FrameworkError<'_, Data, Error>) {
-    println!("[WARN] - error: {:?}, error", error);
 }
