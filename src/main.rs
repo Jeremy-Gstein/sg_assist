@@ -11,7 +11,10 @@ type Context<'a> = poise::Context<'a, Data, Error>;
 #[tokio::main]
 async fn main() {
     let token = std::env::var("DISCORD_TOKEN").expect("missing DISCORD_TOKEN");
-    let intents = serenity::GatewayIntents::non_privileged();
+    let intents = serenity::GatewayIntents::non_privileged() 
+        | serenity::GatewayIntents::MESSAGE_CONTENT
+        | serenity::GatewayIntents::DIRECT_MESSAGES
+        | serenity::GatewayIntents::GUILD_MESSAGES;
 
     let framework = poise::Framework::builder()
         .options(poise::FrameworkOptions {

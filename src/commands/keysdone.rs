@@ -1,12 +1,132 @@
 use crate::{Context, Error};
-use poise::BoxFuture;
+use poise::{serenity_prelude::{self as serenity, ErrorResponse}, BoxFuture};
 use reqwest;
 use serde_json::Value;
 use chrono::{DateTime, Utc};
-use crate::paginate; 
 
+// Pagination function
+pub async fn paginate<U: std::marker::Sync, E>(
+    ctx: Context<'_>,
+    pages: Vec<String>,
+    refresh_data: impl Fn() -> BoxFuture<'static, Result<Vec<String>, Error>> + Send + Sync + 'static,
+) -> Result<(), serenity::Error> {
+    let ctx_id = ctx.id();
+    let prev_button_id = format!("{}prev", ctx_id);
+    let next_button_id = format!("{}next", ctx_id);
+    let refresh_button_id = format!("{}refresh", ctx_id);
 
-/// Fetch the current period ID from Raider.IO API
+    // Send the initial message with buttons
+    let reply = ctx
+        .send(
+            poise::CreateReply::default()
+            .embed(
+                serenity::CreateEmbed::default()
+                .description(&pages[0])
+                .colour(serenity::Colour::BLURPLE),
+            )
+            .components(vec![serenity::CreateActionRow::Buttons(vec![
+                    serenity::CreateButton::new(&prev_button_id).emoji('◀'),
+                    serenity::CreateButton::new(&refresh_button_id).emoji('🔄'),
+                    serenity::CreateButton::new(&next_button_id).emoji('▶'),
+            ])]),
+        )
+        .await?;
+
+    let message_id = reply.message().await?.id;
+    let mut current_page = 0;
+    let mut current_pages = pages.clone(); // Make a mutable copy of pages
+
+    // Interaction collector with a 30-minute timeout
+    if let Err(_timeout) = tokio::time::timeout(
+        std::time::Duration::from_secs(3600),
+        async {
+            while let Some(press) = serenity::ComponentInteractionCollector::new(&ctx)
+                .filter(move |press| press.data.custom_id.starts_with(&ctx_id.to_string()))
+                    .await // Waits for one interaction at a time
+                    {
+                        match press.data.custom_id.as_str() {
+                            id if id == next_button_id => {
+                                current_page = (current_page + 1) % current_pages.len();
+                                press
+                                    .create_response(
+                                        ctx.serenity_context(),
+                                        serenity::CreateInteractionResponse::UpdateMessage(
+                                            serenity::CreateInteractionResponseMessage::new().embed(
+                                                serenity::CreateEmbed::new()
+                                                .description(&current_pages[current_page])
+                                                .colour(serenity::Colour::BLURPLE),
+                                            ),
+                                        ),
+                                    )
+                                    .await?;
+                            }
+                            id if id == prev_button_id => {
+                                current_page = current_page.checked_sub(1).unwrap_or(current_pages.len() - 1);
+                                press
+                                    .create_response(
+                                        ctx.serenity_context(),
+                                        serenity::CreateInteractionResponse::UpdateMessage(
+                                            serenity::CreateInteractionResponseMessage::new().embed(
+                                                serenity::CreateEmbed::new()
+                                                .description(&current_pages[current_page])
+                                                .colour(serenity::Colour::BLURPLE),
+                                            ),
+                                        ),
+                                    )
+                                    .await?;
+                            }
+                            id if id == refresh_button_id => {
+                                press.defer(&ctx.serenity_context()).await?; // Defer the interaction
+
+                                match refresh_data().await {
+                                    Ok(new_pages) => {
+                                        current_pages = new_pages;
+                                        current_page = 0;
+
+                                        // Update the message with new pages
+                                        reply
+                                            .edit(
+                                                ctx,
+                                                poise::CreateReply::default()
+                                                .embed(
+                                                    serenity::CreateEmbed::new()
+                                                    .description(&current_pages[current_page])
+                                                    .colour(serenity::Colour::DARK_GREEN),
+                                                )
+                                                .components(vec![serenity::CreateActionRow::Buttons(vec![
+                                                        serenity::CreateButton::new(&prev_button_id).emoji('◀'),
+                                                        serenity::CreateButton::new(&refresh_button_id).emoji('🔄'),
+                                                        serenity::CreateButton::new(&next_button_id).emoji('▶'),
+                                                ])]),
+                                            )
+                                            .await?;
+                                        }
+                                    Err(e) => {
+                                        ctx.say(format!("Error refreshing data: {}", e)).await?;
+                                    }
+                                }
+                            }
+                            _ => continue,
+                        }
+                    }
+            Ok::<(), serenity::Error>(())
+        },
+    )
+    .await
+    {
+        // The timeout expires after 30 minutes
+        ctx.channel_id()
+            .delete_message(ctx, message_id)
+            .await
+            .unwrap_or_else(|err| {
+                println!("[WARN] Failed to delete message: {}", err);
+            });
+    }
+
+    Ok(())
+}
+
+// Fetch the current period ID from Raider.IO API
 async fn fetch_period_id() -> Result<Value, reqwest::Error> {
     let client = reqwest::Client::new();
     let response = client
@@ -18,7 +138,7 @@ async fn fetch_period_id() -> Result<Value, reqwest::Error> {
     Ok(response)
 }
 
-/// Fetch WoWAudit Roster Mythic+ Data
+// Fetch WoWAudit Roster Mythic+ Data
 async fn fetch_character_data() -> Result<Value, reqwest::Error> {
     let token = std::env::var("WOWAUDIT_TOKEN").expect("missing WOWAUDIT_TOKEN");
     let client = reqwest::Client::new();
@@ -32,7 +152,7 @@ async fn fetch_character_data() -> Result<Value, reqwest::Error> {
     Ok(response)
 }
 
-/// Function to generate pages from data
+// Function to generate pages from data
 fn generate_pages(data: &Value, period_info: &Value) -> Result<Vec<String>, Error> {
     let date_str = period_info["periods"][0]["current"]["start"]
         .as_str()
@@ -76,7 +196,7 @@ fn generate_pages(data: &Value, period_info: &Value) -> Result<Vec<String>, Erro
                 .join("\n");
 
             format!(
-                "**Mythic+ Leaderboard - Page {}/{}**\n\n{}\n\n**Total Runs:** {}\n**Started Tracking Since:** {}",
+                "**Mythic+ Leaderboard - Page {}/{}**\n\n{}\n\n**Total Runs:** {}\n**Last Reset:** {}",
                 page_idx + 1,
                 (leaderboard.len() + 7) / 8,
                 entries,
@@ -87,9 +207,7 @@ fn generate_pages(data: &Value, period_info: &Value) -> Result<Vec<String>, Erro
         .collect())
 }
 
-
-
-/// Get this week's keystone completion leaderboard
+// Get this week's keystone completion leaderboard
 #[poise::command(slash_command,)]
 pub async fn keysdone(ctx: Context<'_>) -> Result<(), Error> {
     // Initial fetch
@@ -110,6 +228,7 @@ pub async fn keysdone(ctx: Context<'_>) -> Result<(), Error> {
         }
     };
 
-    paginate(ctx, initial_pages, refresh_closure).await?;
+    paginate::<(), ErrorResponse>(ctx, initial_pages, refresh_closure).await?;
     Ok(())
 }
+
