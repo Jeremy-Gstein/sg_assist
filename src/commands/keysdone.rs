@@ -3,6 +3,15 @@ use poise::{serenity_prelude::{self as serenity, ErrorResponse}, BoxFuture};
 use reqwest;
 use serde_json::Value;
 use chrono::{DateTime, Utc};
+use std::collections::HashMap;
+
+
+
+// load alt config from yaml.. map 'Main<-Alts'
+fn load_alt_config() -> HashMap<String, Vec<String>> {
+    let config_str = include_str!("../../sg-alts.yaml");
+    serde_yaml::from_str(config_str).expect("failed to parse alt config")
+}
 
 // Pagination function
 pub async fn paginate<U: std::marker::Sync, E>(
@@ -162,7 +171,14 @@ fn generate_pages(data: &Value, period_info: &Value) -> Result<Vec<String>, Erro
     let unix_timestamp = datetime.timestamp();
     let formatted_date = format!("<t:{}:R>", unix_timestamp);
 
+    let alt_config = load_alt_config();
+    let alt_to_main: HashMap<_, _> = alt_config
+        .iter()
+        .flat_map(|(main, alts)| alts.iter().map(move |alt| (alt.as_str(), main.as_str())))
+        .collect();
+
     let mut leaderboard: Vec<(String, usize)> = Vec::new();
+    let mut main_scores: HashMap<&str, usize> = HashMap::new();
     let mut total_runs: usize = 0;
 
     if let Some(characters) = data["characters"].as_array() {
@@ -177,12 +193,19 @@ fn generate_pages(data: &Value, period_info: &Value) -> Result<Vec<String>, Erro
                     .count();
 
                 if dungeon_count > 0 {
-                    leaderboard.push((name.to_string(), dungeon_count));
+                    let main = alt_to_main.get(&name).copied().unwrap_or(name);
+                    *main_scores.entry(main).or_insert(0) += dungeon_count;
+                    //leaderboard.push((name.to_string(), dungeon_count));
                     total_runs += dungeon_count;
                 }
             }
         }
+        leaderboard = main_scores
+            .into_iter()
+            .map(|(k, v)| (k.to_owned(), v))
+            .collect();
         leaderboard.sort_by(|a, b| b.1.cmp(&a.1));
+
     }
 
     Ok(leaderboard
