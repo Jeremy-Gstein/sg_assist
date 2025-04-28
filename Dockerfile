@@ -1,9 +1,30 @@
-FROM rust:latest
-WORKDIR /usr/src/sg_assistant
+# Stage 1: Includes all build utils
+FROM rust:1-slim-bookworm AS builder
+WORKDIR /sg_assistant
 COPY . .
+RUN apt-get update && \
+    apt-get install -y \
+    pkg-config \
+    libssl-dev \
+    && rm -rf /var/lib/apt/lists/*
 RUN cargo build --release
-CMD ["./target/release/sg_assistant"]
 
+# Stage 2: Runtime image
+FROM debian:bookworm-slim
+WORKDIR /sg_assistant
+
+# Install runtime dependencies
+RUN apt-get update && \
+    apt-get install -y \
+    libssl3 \
+    ca-certificates \
+    && rm -rf /var/lib/apt/lists/*
+
+# Copy compiled binary from stage 1 builder
+COPY --from=builder /sg_assistant/target/release/sg_assistant /usr/local/bin
+RUN useradd -m sg-admin
+USER sg-admin
+CMD ["sg_assistant"]
 
 # Local Build:
 # usage:
