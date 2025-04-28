@@ -1,21 +1,18 @@
 #!/usr/bin/bash
 
-# Enable Docker BuildKit
-export DOCKER_BUILDKIT=1
-CACHE_DIR="./target/docker-cache"
-mkdir -p "$CACHE_DIR"
-
 # Update code
 git fetch && git pull
-# build with cached assets
-# see Dockerfile: ./target/docker-cache
-# run `cargo clean` to clear cache 
+
+# Build management
+
+cargo build --release
+
+# build dockerfile
 docker build \
   --tag shodo/sg_assist:main \
-  --build-arg BUILDKIT_INLINE_CACHE=1 \
-  --cache-from type=local,src="$CACHE_DIR" \
-  --cache-to type=local,dest="$CACHE_DIR, mode=max" \
   .
+
+
 
 # Container management
 
