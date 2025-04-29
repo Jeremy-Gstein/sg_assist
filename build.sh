@@ -1,30 +1,67 @@
 #!/usr/bin/bash
 
 # Update code
-git fetch && git pull
+sync_repo() {
+  git fetch && git pull
+}
 
+
+# Stage 1:
 # Build management
+build() {
+  # build and compile with cargo
+  cargo build --release
 
-cargo build --release
+  # build dockerfile
+  docker build \
+    --tag shodo/sg_assist:main \
+    .
+}
 
-# build dockerfile
-docker build \
-  --tag shodo/sg_assist:main \
-  .
-
-
-
+# Stage 2:
 # Container management
-
-# Ignore error if container doesn't exist
-docker rm -f sg_app 2>/dev/null  
-# Assumes .env has DISCORD_TOKEN=... and WOWAUDIT_TOKEN=...
-source .env 
-# Start sg_app
-docker run --name sg_app -itd --restart always \
-  -e DISCORD_TOKEN="$DISCORD_TOKEN" \
-  -e WOWAUDIT_TOKEN="$WOWAUDIT_TOKEN" \
-  shodo/sg_assist:main
+start_container() {
+  # Ignore error if container doesn't exist
+  docker rm -f sg_app 2>/dev/null  
+  # Assumes .env has DISCORD_TOKEN=... and WOWAUDIT_TOKEN=...
+  source .env 
+  # Start sg_app
+  docker run --name sg_app -itd --restart always \
+    -e DISCORD_TOKEN="$DISCORD_TOKEN" \
+    -e WOWAUDIT_TOKEN="$WOWAUDIT_TOKEN" \
+    shodo/sg_assist:main
+}
 
 # Watch initial logs
-timeout --foreground 30 watch -n 1 docker ps
+watch_docker_start() {
+  timeout --foreground 30 watch -n 1 docker ps
+}
+
+# Development Workflow
+start_dev() {
+  build
+  # Ignore error if container doesn't exist
+  docker rm -f sg_app 2>/dev/null  
+  # Assumes .env has DISCORD_TOKEN=... and WOWAUDIT_TOKEN=...
+  source .env 
+  # Start sg_app
+  docker run --name sg_app -itd --restart always \
+    -e DISCORD_TOKEN="$DISCORD_TOKEN" \
+    -e WOWAUDIT_TOKEN="$WOWAUDIT_TOKEN" \
+    -e RUST_LOG=trace \
+    shodo/sg_assist:main
+  clear
+  echo "Attaching to container. Use ctrl-c to exit..."
+  docker attach --detach-keys="ctrl-c" sg_app
+}
+
+
+if [ "$1" == "--dev" ]; then
+  echo "Start Development Workflow"
+  start_dev
+else
+  echo "Starting Default Build"
+  build
+  start_container
+  watch_docker_start
+fi
