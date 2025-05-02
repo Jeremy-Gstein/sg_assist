@@ -4,6 +4,7 @@ use reqwest;
 use serde_json::Value;
 use chrono::{DateTime, Utc};
 use std::collections::HashMap;
+use crate::config;
 
 
 
@@ -45,9 +46,9 @@ pub async fn paginate<U: std::marker::Sync, E>(
     let mut current_page = 0;
     let mut current_pages = pages.clone(); // Make a mutable copy of pages
 
-    // Interaction collector with a 30-minute timeout
+    // Interaction collector with a 24-hour timeout
     if let Err(_timeout) = tokio::time::timeout(
-        std::time::Duration::from_secs(3600),
+        std::time::Duration::from_secs(86400),
         async {
             while let Some(press) = serenity::ComponentInteractionCollector::new(&ctx)
                 .filter(move |press| press.data.custom_id.starts_with(&ctx_id.to_string()))
@@ -149,16 +150,35 @@ async fn fetch_period_id() -> Result<Value, reqwest::Error> {
 
 // Fetch WoWAudit Roster Mythic+ Data
 async fn fetch_character_data() -> Result<Value, reqwest::Error> {
-    let token = std::env::var("WOWAUDIT_TOKEN").expect("missing WOWAUDIT_TOKEN");
     let client = reqwest::Client::new();
-    let response = client
-        .get("https://www.wowaudit.com/v1/historical_data")
-        .header("Authorization", token)
-        .send()
-        .await?
-        .json::<Value>()
-        .await?;
-    Ok(response)
+    let endpoint = "https://www.wowaudit.com/v1/historical_data";
+    
+    let request_1 = client
+        .get(endpoint)
+        .header("Authorization", config::team_1());
+
+    let request_2 = client
+        .get(endpoint)
+        .header("Authorization", config::team_2());
+
+    let (response_1, response_2) = tokio::join!(
+        request_1.send(),
+        request_2.send()
+    );
+
+    let json_1 = response_1?.json::<Value>().await?;
+    let json_2 = response_2?.json::<Value>().await?;
+    
+    let mut combined = Value::Null;
+    if let Some(mut mains) = json_1["characters"].as_array().cloned() {
+        if let Some(alts) = json_2["characters"].as_array()  {
+            mains.extend(alts.clone());
+            combined = serde_json::json!({ "characters": mains });
+        }
+    }
+
+    Ok(combined)
+
 }
 
 // Function to generate pages from data

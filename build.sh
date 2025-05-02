@@ -29,6 +29,7 @@ start_container() {
   docker run --name sg_app -itd --restart always \
     -e DISCORD_TOKEN="$DISCORD_TOKEN" \
     -e WOWAUDIT_TOKEN="$WOWAUDIT_TOKEN" \
+    -e WOWAUDIT_TOKEN_1="$WOWAUDIT_TOKEN_1" \
     shodo/sg_assist:main
 }
 
@@ -48,7 +49,8 @@ start_dev() {
   docker run --name sg_app -itd --restart always \
     -e DISCORD_TOKEN="$DISCORD_TOKEN" \
     -e WOWAUDIT_TOKEN="$WOWAUDIT_TOKEN" \
-    -e RUST_LOG=trace \
+    -e WOWAUDIT_TOKEN_1="$WOWAUDIT_TOKEN_1" \
+    -e RUST_LOG=debug \
     shodo/sg_assist:main
   clear
   echo "Attaching to container. Use ctrl-c to exit..."

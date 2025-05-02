@@ -1,11 +1,14 @@
 use poise::serenity_prelude as serenity;
 
-mod commands;
+mod commands; // all command logic stored here
+mod config; // all tokens are configured here
 
 pub struct Data {} // User data, which is stored and accessible in all command invocations
 
 type Error = Box<dyn std::error::Error + Send + Sync>;
 type Context<'a> = poise::Context<'a, Data, Error>;
+
+
 
 
 async fn on_error(error: poise::FrameworkError<'_, Data, Error>) {
@@ -56,15 +59,13 @@ async fn main() {
         .build();
     
 
-    let token = std::env::var("DISCORD_TOKEN").expect("missing DISCORD_TOKEN");
-
     let intents = serenity::GatewayIntents::non_privileged() 
         | serenity::GatewayIntents::MESSAGE_CONTENT
         | serenity::GatewayIntents::DIRECT_MESSAGES
         | serenity::GatewayIntents::GUILD_MESSAGES;
 
  
-    let client = serenity::ClientBuilder::new(token, intents)
+    let client = serenity::ClientBuilder::new(config::discord_token(), intents)
         .framework(framework)
         .await;
     client.unwrap().start().await.unwrap();
