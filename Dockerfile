@@ -12,5 +12,6 @@ COPY target/release/sg_assistant /usr/local/bin/
 RUN useradd -m sg-admin
 USER sg-admin 
 
+# Run application binary as sg-admin user
 CMD ["sg_assistant"]
 

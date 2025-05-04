@@ -1,15 +1,18 @@
 use crate::{Context, Error};
-use poise::{serenity_prelude::{self as serenity, ErrorResponse}, BoxFuture};
 use reqwest;
 use serde_json::Value;
 use chrono::{DateTime, Utc};
 use std::collections::HashMap;
 use crate::config;
+use poise::serenity_prelude as serenity;
+use serenity::ErrorResponse;
+use poise::BoxFuture;
+
 
 
 
 // load alt config from yaml.. map 'Main<-Alts'
-fn load_alt_config() -> HashMap<String, Vec<String>> {
+pub fn load_alt_config() -> HashMap<String, Vec<String>> {
     let config_str = include_str!("../../sg-alts.yaml");
     serde_yaml::from_str(config_str).expect("failed to parse alt config")
 }
@@ -38,7 +41,7 @@ pub async fn paginate<U: std::marker::Sync, E>(
                     serenity::CreateButton::new(&prev_button_id).emoji('◀'),
                     serenity::CreateButton::new(&refresh_button_id).emoji('🔄'),
                     serenity::CreateButton::new(&next_button_id).emoji('▶'),
-            ])]),
+            ].into())]),
         )
         .await?;
 
@@ -50,7 +53,7 @@ pub async fn paginate<U: std::marker::Sync, E>(
     if let Err(_timeout) = tokio::time::timeout(
         std::time::Duration::from_secs(86400),
         async {
-            while let Some(press) = serenity::ComponentInteractionCollector::new(&ctx)
+            while let Some(press) = serenity::ComponentInteractionCollector::new(&ctx.serenity_context())
                 .filter(move |press| press.data.custom_id.starts_with(&ctx_id.to_string()))
                     .await // Waits for one interaction at a time
                     {
@@ -59,7 +62,7 @@ pub async fn paginate<U: std::marker::Sync, E>(
                                 current_page = (current_page + 1) % current_pages.len();
                                 press
                                     .create_response(
-                                        ctx.serenity_context(),
+                                        &ctx.serenity_context().http,
                                         serenity::CreateInteractionResponse::UpdateMessage(
                                             serenity::CreateInteractionResponseMessage::new().embed(
                                                 serenity::CreateEmbed::new()
@@ -74,7 +77,7 @@ pub async fn paginate<U: std::marker::Sync, E>(
                                 current_page = current_page.checked_sub(1).unwrap_or(current_pages.len() - 1);
                                 press
                                     .create_response(
-                                        ctx.serenity_context(),
+                                        &ctx.serenity_context().http,
                                         serenity::CreateInteractionResponse::UpdateMessage(
                                             serenity::CreateInteractionResponseMessage::new().embed(
                                                 serenity::CreateEmbed::new()
@@ -86,7 +89,7 @@ pub async fn paginate<U: std::marker::Sync, E>(
                                     .await?;
                             }
                             id if id == refresh_button_id => {
-                                press.defer(&ctx.serenity_context()).await?; // Defer the interaction
+                                press.defer(&ctx.serenity_context().http).await?; // Defer the interaction
 
                                 match refresh_data().await {
                                     Ok(new_pages) => {
@@ -107,7 +110,7 @@ pub async fn paginate<U: std::marker::Sync, E>(
                                                         serenity::CreateButton::new(&prev_button_id).emoji('◀'),
                                                         serenity::CreateButton::new(&refresh_button_id).emoji('🔄'),
                                                         serenity::CreateButton::new(&next_button_id).emoji('▶'),
-                                                ])]),
+                                                ].into())]),
                                             )
                                             .await?;
                                         }
@@ -126,7 +129,7 @@ pub async fn paginate<U: std::marker::Sync, E>(
     {
         // The timeout expires after 30 minutes
         ctx.channel_id()
-            .delete_message(ctx, message_id)
+            .delete_message(&ctx.serenity_context().http, message_id)
             .await
             .unwrap_or_else(|err| {
                 println!("[WARN] Failed to delete message: {}", err);
@@ -137,7 +140,7 @@ pub async fn paginate<U: std::marker::Sync, E>(
 }
 
 // Fetch the current period ID from Raider.IO API
-async fn fetch_period_id() -> Result<Value, reqwest::Error> {
+pub async fn fetch_period_id() -> Result<Value, reqwest::Error> {
     let client = reqwest::Client::new();
     let response = client
         .get("https://raider.io/api/v1/periods")
@@ -149,7 +152,7 @@ async fn fetch_period_id() -> Result<Value, reqwest::Error> {
 }
 
 // Fetch WoWAudit Roster Mythic+ Data
-async fn fetch_character_data() -> Result<Value, reqwest::Error> {
+pub async fn fetch_character_data() -> Result<Value, reqwest::Error> {
     let client = reqwest::Client::new();
     let endpoint = "https://www.wowaudit.com/v1/historical_data";
     
@@ -182,7 +185,7 @@ async fn fetch_character_data() -> Result<Value, reqwest::Error> {
 }
 
 // Function to generate pages from data
-fn generate_pages(data: &Value, period_info: &Value) -> Result<Vec<String>, Error> {
+pub fn generate_pages(data: &Value, period_info: &Value) -> Result<Vec<String>, Error> {
     let date_str = period_info["periods"][0]["current"]["start"]
         .as_str()
         .ok_or("Missing period start date")?;
@@ -215,7 +218,6 @@ fn generate_pages(data: &Value, period_info: &Value) -> Result<Vec<String>, Erro
                 if dungeon_count > 0 {
                     let main = alt_to_main.get(&name).copied().unwrap_or(name);
                     *main_scores.entry(main).or_insert(0) += dungeon_count;
-                    //leaderboard.push((name.to_string(), dungeon_count));
                     total_runs += dungeon_count;
                 }
             }

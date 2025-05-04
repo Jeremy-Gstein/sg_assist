@@ -25,10 +25,6 @@ async fn on_error(error: poise::FrameworkError<'_, Data, Error>) {
 #[tokio::main]
 async fn main() {
     tracing_subscriber::fmt()
-        .compact()
-        .with_env_filter(
-            tracing_subscriber::EnvFilter::builder().with_default_directive(tracing::Level::INFO.into()).from_env_lossy(),
-        )
         .with_target(true)
         .init();
 
