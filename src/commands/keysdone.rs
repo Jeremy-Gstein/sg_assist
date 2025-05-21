@@ -155,14 +155,17 @@ pub async fn fetch_period_id() -> Result<Value, reqwest::Error> {
 pub async fn fetch_character_data() -> Result<Value, reqwest::Error> {
     let client = reqwest::Client::new();
     let endpoint = "https://www.wowaudit.com/v1/historical_data";
-    
+
+    // TODO - rework logic for tokens, starting to merge debug-keysdone -> main
+
     let request_1 = client
         .get(endpoint)
-        .header("Authorization", config::team_1());
+        .header("Authorization", config::mains());
 
     let request_2 = client
         .get(endpoint)
-        .header("Authorization", config::team_2());
+        .header("Authorization", config::alts());
+
 
     let (response_1, response_2) = tokio::join!(
         request_1.send(),
