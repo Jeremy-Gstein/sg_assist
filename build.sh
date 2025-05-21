@@ -30,6 +30,10 @@ start_container() {
     -e DISCORD_TOKEN="$DISCORD_TOKEN" \
     -e WOWAUDIT_TOKEN="$WOWAUDIT_TOKEN" \
     -e WOWAUDIT_TOKEN_1="$WOWAUDIT_TOKEN_1" \
+    -e MAINS="$MAINS" \
+    -e ALTS="$ALTS" \
+    -e RAIDER_ALTS="$RAIDER_ALTS" \
+    -e OFFICER_ALTS="$OFFICER_ALTS" \
     shodo/sg_assist:main
 }
 
@@ -50,6 +54,10 @@ start_dev() {
     -e DISCORD_TOKEN="$DISCORD_TOKEN" \
     -e WOWAUDIT_TOKEN="$WOWAUDIT_TOKEN" \
     -e WOWAUDIT_TOKEN_1="$WOWAUDIT_TOKEN_1" \
+    -e MAINS="$MAINS" \
+    -e ALTS="$ALTS" \
+    -e RAIDER_ALTS="$RAIDER_ALTS" \
+    -e OFFICER_ALTS="$OFFICER_ALTS" \
     -e RUST_LOG=debug \
     shodo/sg_assist:main
   clear
