@@ -1,0 +1,28 @@
+#!/usr/bin/bash
+
+GIT_PATH_URL="https://raw.githubusercontent.com/Jeremy-Gstein/sg_assist/refs/heads/main/sg-alts.yaml"
+
+
+sync_config() {
+  echo "Getting latest config from sg_assist/main"
+  curl -s "$GIT_PATH_URL" --output sg-alts.yaml
+}
+
+backup_current() {
+  echo backing up current config
+  cp -v ./sg-alts.yaml ./backup-sg-alts.yaml
+}
+
+# if local config exists, backup first
+if [ -e "sg-alts.yaml" ]; then
+  backup_current
+  sync_config
+  exit 0
+else
+  sync_config
+  exit 0
+fi
+
+
+
+
