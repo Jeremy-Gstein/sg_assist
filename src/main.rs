@@ -35,6 +35,7 @@ async fn main() {
                 commands::updatesim(), commands::roster(), 
                 commands::mykeys(), commands::vault(), 
                 commands::keysdone(), commands::help(),
+                commands::leaderboard(),
         ],
         on_error: |error| Box::pin(on_error(error)),
         ..Default::default()

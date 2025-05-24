@@ -16,3 +16,5 @@ pub use roster::*;
 mod updatesim;
 pub use updatesim::*;
 
+mod leaderboard;
+pub use leaderboard::*;
