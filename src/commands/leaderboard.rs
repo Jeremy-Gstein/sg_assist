@@ -24,7 +24,7 @@ pub async fn paginate<U: std::marker::Sync, E>(
     let next_button_id = format!("{}next", ctx_id);
     let refresh_button_id = format!("{}refresh", ctx_id);
 
-    let sent = ctx
+    let reply_result = ctx
         .send(
             poise::CreateReply::default()
                 .embed(
@@ -38,11 +38,27 @@ pub async fn paginate<U: std::marker::Sync, E>(
                     serenity::CreateButton::new(&next_button_id).emoji('▶'),
                 ])]),
         )
-        .await?;
+        .await;
 
-    let message = sent.message().await?;
+    let reply = match reply_result {
+        Ok(r) => r,
+        Err(e) => {
+            eprintln!("Failed to send initial reply: {}", e);
+            return Err(e);
+        }
+    };
+
+    let message = match reply.message().await {
+        Ok(msg) => msg,
+        Err(e) => {
+            eprintln!("Failed to get message ID: {}", e);
+            return Err(e);
+        }
+    };
+
+    let message_id = message.id;
     let mut current_page = 0;
-    let mut current_pages = pages;
+    let mut current_pages = pages.clone();
 
     if let Err(_timeout) = tokio::time::timeout(
         std::time::Duration::from_secs(86400),
@@ -75,9 +91,11 @@ pub async fn paginate<U: std::marker::Sync, E>(
                             current_pages = new_pages;
                             current_page = 0;
 
-                            if let Err(e) = message
-                                .edit(
+                            if let Err(e) = ctx
+                                .channel_id()
+                                .edit_message(
                                     &ctx.serenity_context().http,
+                                    message_id,
                                     serenity::EditMessage::new()
                                         .embed(
                                             serenity::CreateEmbed::new()
@@ -130,7 +148,7 @@ pub async fn paginate<U: std::marker::Sync, E>(
     {
         if let Err(e) = ctx
             .channel_id()
-            .delete_message(&ctx.serenity_context().http, message.id)
+            .delete_message(&ctx.serenity_context().http, message_id)
             .await
         {
             eprintln!("[WARN] Failed to delete message after timeout: {}", e);
@@ -195,11 +213,12 @@ pub async fn fetch_period_id() -> Result<Value, reqwest::Error> {
 async fn read_leaderboard() -> redis::RedisResult<Leaderboard> {
     let client = redis::Client::open("redis://:sgdbadmin@redis/").unwrap();
     let mut conn = client.get_connection().unwrap();
+
     let vec_leaderboard: Vec<(String, usize)> = conn.hgetall("leaderboard")?;
     Ok(vec_leaderboard)
 }
 
-/// Show the guilds mythic+ leaderboard for current week.
+/// Show the guild's Mythic+ leaderboard for the current week
 #[poise::command(slash_command)]
 pub async fn leaderboard(ctx: Context<'_>) -> Result<(), Error> {
     let period_info = fetch_period_id().await?;
@@ -221,3 +240,4 @@ pub async fn leaderboard(ctx: Context<'_>) -> Result<(), Error> {
     paginate::<(), ErrorResponse>(ctx, initial_pages, refresh_closure).await?;
     Ok(())
 }
+
