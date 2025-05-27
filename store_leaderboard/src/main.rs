@@ -1,3 +1,6 @@
+use std::io::{BufRead, BufReader, Write};
+use std::fs::{File, OpenOptions};
+use std::time::{SystemTime, UNIX_EPOCH};
 use std::collections::HashMap;
 use redis::{AsyncCommands, RedisResult};
 
@@ -77,11 +80,99 @@ async fn remove_from_leaderboard(names: &[String]) -> RedisResult<()> {
 
 }
 
+
+// append leaderboard state to leaderboard.log
+async fn backup_leaderboard() -> RedisResult<()> {
+    let leaderboard = read_leaderboard().await?;
+    let time_start = SystemTime::now().duration_since(UNIX_EPOCH).unwrap();
+    let timestamp = format!("[{}] Leaderboard State Backup:\n", time_start.as_secs());
+
+    let mut log_entry = String::new();
+    log_entry.push_str(&timestamp);
+    for (name, keys) in leaderboard {
+        log_entry.push_str(&format!("{}: {}\n", name, keys));
+    }
+    log_entry.push('\n');
+    let mut file = OpenOptions::new()
+        .create(true)
+        .append(true)
+        .open("leaderboard.log")?;
+    file.write_all(log_entry.as_bytes())?;
+    Ok(())
+}
+
+// delete leaderboard set and append state to leaderboard.log
+async fn delete_leaderboard() -> RedisResult<()> {
+    backup_leaderboard().await?;
+
+    let client = redis::Client::open("redis://:sgdbadmin@127.0.0.1/")?;
+    let mut conn = client.get_multiplexed_tokio_connection().await?;
+   
+    let deleted: i32 = conn.del("leaderboard").await?;
+    if deleted > 0 {
+        println!("[DELETE-SET] leaderboard has been removed.");
+    } else {
+        println!("[DELETE-SET ERROR] leaderboard set not found.");
+    }
+
+    Ok(())
+
+}
+
+// recover leaderboard state from leaderboard.log given a timestamp
+async fn restore_leaderboard(timestamp: &str) -> RedisResult<()> {
+    let file = File::open("leaderboard.log")?;
+    let reader = BufReader::new(file);
+
+    let target_header = format!("[{}] Leaderboard State Backup:", timestamp);
+    let mut found = false;
+    let mut restore: HashMap<String, usize> = HashMap::new();
+
+    for line in reader.lines() {
+        let line = line?;
+        if line.trim().is_empty() {
+            found = false;
+            continue;
+        }
+        if !found {
+            if line.trim() == target_header {
+                found = true;
+            }
+            continue;
+        }
+        if let Some((name, value)) = line.split_once(':') {
+            let name = name.trim().to_string();
+            if let Ok(keys) = value.trim().parse::<usize>() {
+                restore.insert(name, keys);
+            }
+        }
+    }
+    if restore.is_empty() {
+        println!("[RESTORE ERROR] No data found for timestamp '{}'.", timestamp);
+        return Ok(());
+    }
+    println!("[RESTORE] {} entries found, clearing current leaderboard...", restore.len());
+    delete_leaderboard().await?;
+
+    // Re-insert recovered data
+    let client = redis::Client::open("redis://:sgdbadmin@127.0.0.1/")?;
+    let mut conn = client.get_multiplexed_tokio_connection().await?;
+    for (name, keys) in restore {
+        let _: () = conn.hset("leaderboard", name, keys).await?;
+    }
+
+    println!("[RESTORE] Successfully restored leaderboard state from [{}].", timestamp);
+    Ok(())
+
+}
+
+
 #[tokio::main]
 async fn main() -> Result<(), Error>{
     let mut args = std::env::args().skip(1);
-    if let Some(flag) = args.next() {
-        if flag == "--remove" {
+    match args.next().as_deref() {
+
+        Some("--remove") => {
             let raw_names: Vec<String> = args.collect();
             // support  --remove foo,bar and --remove foo bar 
             let names: Vec<String> = raw_names
@@ -90,17 +181,43 @@ async fn main() -> Result<(), Error>{
                 .filter(|s| !s.is_empty())
                 .collect();
             if names.is_empty() {
-                eprint!("[ERROR] Expected names. Example: cargo run -- --remove foo bar OR --remove foo,bar")
+                eprintln!("[ERROR] Expected names. Example: cargo run -- --remove foo bar OR --remove foo,bar")
             } else {
                 remove_from_leaderboard(&names).await?;
             }
-            return Ok(());
-        } else {
+        } 
+
+        Some("--delete") => {
+            match args.next().as_deref() {
+                Some("leaderboard") => {
+                    delete_leaderboard().await?;
+                }
+                Some(set) => {
+                    eprintln!("{} set not-found in redis", set);
+                }
+                None => {
+                    eprintln!("Missing delete target (example: `--remove leaderboard`)");
+                }
+            }
+        }
+
+        Some("--restore") => {
+            if let Some(timestamp) = args.next() {
+                restore_leaderboard(&timestamp).await?;
+            } else {
+                eprintln!("Missing timestamp to restore.");
+            }
+        }
+
+        Some(flag) => {
             eprintln!("Unknown flag: {}", flag);
-            return Ok(());
+        }
+
+        None => {
+            let lb = get_leaderboard().await?;
+            store_leaderboard(lb).await?;
         }
     }
-    let lb = get_leaderboard().await?;
-    store_leaderboard(lb).await?;
     Ok(())
 }
+
