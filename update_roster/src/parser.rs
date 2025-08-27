@@ -14,7 +14,7 @@ type Error = Box<dyn std::error::Error>;
 ///   - bar
 /// ```
 pub fn write_yaml(alias_map: &AliasMap) -> Result<(), Error> {
-    let mut file = File::create("../sg-alts.yaml")?;
+    let mut file = File::create("../alts.yaml")?;
 
     for (key, values) in alias_map {
         if key.trim().is_empty() {
