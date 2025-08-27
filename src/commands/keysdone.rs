@@ -228,7 +228,7 @@ async fn read_leaderboard() -> redis::RedisResult<Leaderboard> {
     Ok(vec_leaderboard)
 }
 
-/// [ OUTDATED - use /leaderboard instead ] Show the guild's Mythic+ leaderboard for the current week
+/// Show the guild's Mythic+ leaderboard for the current week
 #[poise::command(slash_command)]
 pub async fn keysdone(ctx: Context<'_>) -> Result<(), Error> {
     let period_info = fetch_period_id().await?;

@@ -37,8 +37,31 @@ build_roster_tool() {
     cd $DEFAULT_PATH
 }
 
+####################
+#  Update/Rebuild  #
+####################
+rebuild() {
+  git_stuff
+  build_main
+  build_leaderboard_cli_tool
+  build_roster_tool
+}
+
+####################
+#  Docker/Runtime  #
+####################
+compose_app_and_db() {
+  # Requires .env for tokens
+  echo "Starting Discord Bot and backend redis DB..."
+  docker compose up -d --build
+}
+
+####################
+# Systemd Sercices #
+####################
 start_services() {
   # start/enable systemd services.
+  # should only run AFTER containers start
   echo "moving systemd services to /etc/systemd/system/"
   cd $DEFAULT_PATH/store_leaderboard/services && \
     sudo cp -v delete-leaderboard.timer delete-leaderboard.service /etc/systemd/system/ && \
@@ -51,27 +74,44 @@ start_services() {
     cd $DEFAULT_PATH
 }
 
-compose_app_and_db() {
-  echo "Starting Discord Bot and backend redis DB..."
-  docker compose up -d --build
+help_menu() {
+  cat <<EOF
+setup.sh for sg_assist
+Usage: ./setup.sh [OPTIONS]
+
+Options:
+  -b|--build    Build and compile binaries with cargo.
+
+  -s|--start    Start and Run Containers for Discord and Redis.
+
+  -e|--enable   Move systemd Servies. Reload daemon and Enables 
+                store_leaderboard.timer, delete-leaderboard.timer 
+
+  -h|--help     Show this help menu
+EOF
 }
 
-rebuild() {
-  git_stuff
-  build_main
-  build_leaderboard_cli_tool
-  build_roster_tool
-}
-
 ####################
-#  Update/Rebuild  #
+#      Main        #
 ####################
-rebuild
-####################
-#  Docker/Runtime  #
-####################
-compose_app_and_db
-####################
-# Systemd Sercices #
-####################
-#start_services
+case "$1" in 
+  --build|-b) 
+    echo "Update/Rebuild"
+    rebuild 
+    ;;
+  --start|--run|-s) 
+    echo "Starting Containers" 
+    compose_app_and_db
+    ;;
+  --service|--enable|-e) 
+    echo "Moving services to /etc/systemd/system/" 
+    start_services
+    ;;
+  --help|-h)
+    help_menu
+    ;;
+  *) 
+  echo "Unknown option: $1" 
+  help_menu
+  ;;
+esac
