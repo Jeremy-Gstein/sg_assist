@@ -1,0 +1,9 @@
+[Unit]
+Description=Run delete-leaderboard service every tuesday at 11am
+
+[Timer]
+OnCalendar=Tue 11:00
+Persistant=true
+
+[Install]
+WantedBy=timers.target

@@ -1,0 +1,9 @@
+[Unit]
+Description=Delete leaderboard task
+
+[Service]
+Type=oneshot
+WorkingDirectory=/home/pi4/sg_assist/bin
+ExecStart=/home/pi4/sg_assist/bin/keys-db --delete leaderboard
+User=pi4
+Group=pi4

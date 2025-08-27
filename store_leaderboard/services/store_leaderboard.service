@@ -3,5 +3,7 @@ Description=Run store_leaderboard task
 
 [Service]
 Type=oneshot
-WorkingDirectory=%h/sg_assist/store_leaderboard
+WorkingDirectory=/home/pi4/sg_assist/store_leaderboard
 ExecStart=/usr/bin/cargo run -p store_leaderboard
+User=pi4
+Group=pi4
