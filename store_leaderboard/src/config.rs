@@ -60,6 +60,6 @@ pub fn officer_alts() -> String {
 // load alt config from yaml.. map 'Main<-Alts'
 // this is stored in sg_assist/store_leaderboard so sg-alts.yaml exists ../../
 pub fn load_alt_config() -> HashMap<String, Vec<String>> {
-    let config_str = include_str!("../../sg-alts.yaml");
+    let config_str = include_str!("../../alts.yaml");
     serde_yaml::from_str(config_str).expect("failed to parse alt config")
 }
