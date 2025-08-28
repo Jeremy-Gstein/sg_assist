@@ -4,8 +4,6 @@ Cargo.lock
 
 .env
 
-/bin
-
 update_roster/target
 
 update_roster/Cargo.lock

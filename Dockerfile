@@ -6,7 +6,7 @@ RUN apt-get update && \
     rm -rf /var/lib/apt/lists/*
 
 # Copy built binary from host machine
-COPY target/release/sg_assistant /usr/local/bin/
+COPY bin/sg_assistant /usr/local/bin/
 
 # Non-root user for security
 RUN useradd -m sg-admin
