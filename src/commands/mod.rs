@@ -18,3 +18,6 @@ pub use updatesim::*;
 
 mod leaderboard;
 pub use leaderboard::*;
+
+mod whitelist;
+pub use whitelist::*; 

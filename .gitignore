@@ -17,3 +17,5 @@ store_leaderboard/Cargo.lock
 store_leaderboard/.env
 
 store_leaderboard/leaderboard.log
+
+/bin

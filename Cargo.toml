@@ -6,6 +6,7 @@ edition = "2024"
 [dependencies]
 chrono = "0.4"
 poise = { version = "0.6.1", features = ["cache", "chrono", "collector"] }
+rcon = { version = "0.6.0", features = ["rt-tokio"] }
 redis = { version = "0.31.0", features = ["tokio-comp"] }
 reqwest = { version = "0.12.7", features = ["json"] }
 serde_json = "1.0.128"
