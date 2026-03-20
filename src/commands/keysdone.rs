@@ -218,7 +218,20 @@ async fn paginate(
 /// Show the guild's Mythic+ leaderboard for the current week.
 #[poise::command(slash_command)]
 pub async fn keysdone(ctx: Context<'_>) -> Result<(), Error> {
-    let data = fetch_historical_data().await?;
+    let data = match fetch_historical_data().await {
+        Ok(d) => d,
+        Err(e) => {
+            eprintln!("Failed to fetch wowaudit data: {}", e);
+            ctx.send(poise::CreateReply::default()
+                .embed(serenity::CreateEmbed::new()
+                    .title("Error")
+                    .description("Could not reach the WowAudit API. Please try again later.")
+                    .colour(serenity::Colour::RED)
+                )
+            ).await?;
+            return Ok(());
+        }
+    };
     let leaderboard = build_leaderboard(&data);
     let pages = generate_pages(&leaderboard);
 
