@@ -3,19 +3,3 @@
 Cargo.lock
 
 .env
-
-update_roster/target
-
-update_roster/Cargo.lock
-
-update_roster/.env
-
-store_leaderboard/target
-
-store_leaderboard/Cargo.lock
-
-store_leaderboard/.env
-
-store_leaderboard/leaderboard.log
-
-/bin
