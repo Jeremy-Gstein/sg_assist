@@ -5,7 +5,7 @@ use crate::Error;
 use poise::serenity_prelude::CreateEmbed;
 
 async fn fetch_roster_data() -> Result<Value, reqwest::Error> {
-    let token = std::env::var("WOWAUDIT_TOKEN").expect("missing WOWAUDIT_TOKEN");
+    let token = crate::config::wowaudit_token();
     let client = reqwest::Client::new();
     let response = client
         .get("https://www.wowaudit.com/v1/characters")

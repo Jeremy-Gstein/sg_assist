@@ -16,7 +16,7 @@ struct UpdateSimModal {
 }
 
 async fn update_wishlist(id: &str) -> Result<serde_json::Value, reqwest::Error> {
-    let token = std::env::var("WOWAUDIT_TOKEN").expect("missing WOWAUDIT_TOKEN");
+    let token = crate::config::wowaudit_token();
     let client = reqwest::Client::new();
     let payload = json!({
         "report_id": id,

@@ -1,26 +1,22 @@
 use poise::serenity_prelude as serenity;
 
-mod commands; // all command logic stored here
-mod config; // all tokens are configured here
+mod commands;
+mod config;
 
-pub struct Data {} // User data, which is stored and accessible in all command invocations
+pub struct Data {}
 
 type Error = Box<dyn std::error::Error + Send + Sync>;
 type Context<'a> = poise::Context<'a, Data, Error>;
-
-
-
 
 async fn on_error(error: poise::FrameworkError<'_, Data, Error>) {
     match error {
         poise::FrameworkError::Setup { error, .. } => panic!("Failed to start bot: {:?}", error),
         poise::FrameworkError::Command { error, ctx, .. } => {
-            println!("Error in command `{}`: {:?}", ctx.command().name, error,);
+            println!("Error in command `{}`: {:?}", ctx.command().name, error);
         }
-        error => poise::builtins::on_error(error).await.unwrap(), 
+        error => poise::builtins::on_error(error).await.unwrap(),
     }
 }
-
 
 #[tokio::main]
 async fn main() {
@@ -28,41 +24,35 @@ async fn main() {
         .with_target(true)
         .init();
 
-
-
     let options = poise::FrameworkOptions {
         commands: vec![
-                commands::updatesim(), commands::roster(), 
-                commands::mykeys(), commands::vault(), 
-                commands::keysdone(), commands::help(),
-                commands::leaderboard(), 
-                commands::whitelist(),
+            commands::updatesim(),
+            commands::roster(),
+            commands::mykeys(),
+            commands::vault(),
+            commands::keysdone(),
+            commands::help(),
         ],
         on_error: |error| Box::pin(on_error(error)),
         ..Default::default()
     };
-
 
     let framework = poise::Framework::builder()
         .setup(move |ctx, _ready, framework| {
             Box::pin(async move {
                 println!("Logged in as {}", _ready.user.name);
                 poise::builtins::register_globally(ctx, &framework.options().commands).await?;
-                Ok(Data{
-
-                })
+                Ok(Data {})
             })
         })
         .options(options)
         .build();
-    
 
-    let intents = serenity::GatewayIntents::non_privileged() 
+    let intents = serenity::GatewayIntents::non_privileged()
         | serenity::GatewayIntents::MESSAGE_CONTENT
         | serenity::GatewayIntents::DIRECT_MESSAGES
         | serenity::GatewayIntents::GUILD_MESSAGES;
 
- 
     let client = serenity::ClientBuilder::new(config::discord_token(), intents)
         .framework(framework)
         .await;

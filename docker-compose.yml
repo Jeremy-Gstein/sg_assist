@@ -1,31 +1,11 @@
 version: "3.9"
 
-networks:
-  backend:
-    driver: bridge
-
 services:
-  redis:
-    image: redis:8-alpine
-    container_name: redis
-    ports: 
-      - "127.0.0.1:6379:6379"
-    command: ["redis-server", "--requirepass", "sgdbadmin"]
-    networks: 
-      - backend
-    restart: unless-stopped
-
-
   sg_app:
     build:
       context: .
-      dockerfile: Dockerfile 
-    container_name: sg_app 
-    depends_on:
-      - redis 
+      dockerfile: Dockerfile
+    container_name: sg_app
     env_file:
       - .env
-    networks:
-      - backend
     restart: unless-stopped
-
