@@ -4,7 +4,7 @@ use crate::Context;
 use crate::Error;
 
 pub async fn fetch_character_data() -> Result<Value, reqwest::Error> {
-    let token = std::env::var("WOWAUDIT_TOKEN").expect("missing WOWAUDIT_TOKEN");
+    let token = crate::config::wowaudit_token();
     let client = reqwest::Client::new();
     let response = client
         .get("https://www.wowaudit.com/v1/historical_data")
@@ -80,29 +80,3 @@ pub async fn vault(
 
     Ok(())
 }
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-

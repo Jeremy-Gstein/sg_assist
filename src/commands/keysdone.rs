@@ -1,15 +1,88 @@
 use crate::{Context, Error};
-use chrono::{DateTime, Utc};
+use crate::config;
 use poise::serenity_prelude as serenity;
-use serenity::ErrorResponse;
 use poise::BoxFuture;
 use serde_json::Value;
-use redis::Commands;
 
 type Leaderboard = Vec<(String, usize)>;
 
-/// Paginated leaderboard with buttons
-pub async fn paginate<U: std::marker::Sync, E>(
+// ---------------------------------------------------------------------------
+// API helpers
+// ---------------------------------------------------------------------------
+
+/// Fetch current-week historical data from wowaudit.
+async fn fetch_historical_data() -> Result<Value, reqwest::Error> {
+    let client = reqwest::Client::new();
+    client
+        .get("https://www.wowaudit.com/v1/historical_data")
+        .header("Authorization", config::wowaudit_token())
+        .send()
+        .await?
+        .json::<Value>()
+        .await
+}
+
+/// Build a sorted leaderboard (name, keys_done) from the wowaudit response.
+/// Mirrors the bash script: sort_by(.data.dungeons_done | length) | reverse | .[:10]
+fn build_leaderboard(data: &Value) -> Leaderboard {
+    let Some(characters) = data["characters"].as_array() else {
+        return vec![];
+    };
+
+    let mut entries: Vec<(String, usize)> = characters
+        .iter()
+        .filter_map(|c| {
+            let name = c["name"].as_str()?.to_string();
+            let count = c["data"]["dungeons_done"]
+                .as_array()
+                .map(|v| v.len())
+                .unwrap_or(0);
+            Some((name, count))
+        })
+        .collect();
+
+    entries.sort_by(|a, b| b.1.cmp(&a.1));
+    entries
+}
+
+// ---------------------------------------------------------------------------
+// Page generation
+// ---------------------------------------------------------------------------
+
+fn generate_pages(leaderboard: &Leaderboard) -> Vec<String> {
+    if leaderboard.is_empty() {
+        return vec!["No data available for this week.".to_string()];
+    }
+
+    let total_runs: usize = leaderboard.iter().map(|(_, c)| c).sum();
+
+    leaderboard
+        .chunks(8)
+        .enumerate()
+        .map(|(page_idx, chunk)| {
+            let total_pages = (leaderboard.len() + 7) / 8;
+            let entries = chunk
+                .iter()
+                .map(|(name, count)| format!("- **{}**: {} keys completed", name, count))
+                .collect::<Vec<_>>()
+                .join("\n");
+
+            format!(
+                "**Mythic+ Leaderboard — Page {}/{}**\n\n{}\n\n**Total Runs This Week:** {}",
+                page_idx + 1,
+                total_pages,
+                entries,
+                total_runs,
+            )
+        })
+        .collect()
+}
+
+// ---------------------------------------------------------------------------
+// Paginated embed with ◀ 🔄 ▶ buttons
+// ---------------------------------------------------------------------------
+
+async fn paginate(
     ctx: Context<'_>,
     pages: Vec<String>,
     refresh_data: impl Fn() -> BoxFuture<'static, Result<Vec<String>, Error>> + Send + Sync + 'static,
@@ -20,11 +93,12 @@ pub async fn paginate<U: std::marker::Sync, E>(
     }
 
     let ctx_id = ctx.id();
-    let prev_button_id = format!("{}prev", ctx_id);
-    let next_button_id = format!("{}next", ctx_id);
-    let refresh_button_id = format!("{}refresh", ctx_id);
+    let prev_id = format!("{}prev", ctx_id);
+    let next_id = format!("{}next", ctx_id);
+    let refresh_id = format!("{}refresh", ctx_id);
+    let delete_id = format!("{}delete", ctx_id);
 
-    let reply_result = ctx
+    let reply = ctx
         .send(
             poise::CreateReply::default()
                 .embed(
@@ -33,70 +107,37 @@ pub async fn paginate<U: std::marker::Sync, E>(
                         .colour(serenity::Colour::BLURPLE),
                 )
                 .components(vec![serenity::CreateActionRow::Buttons(vec![
-                    serenity::CreateButton::new(&prev_button_id).emoji('◀'),
-                    serenity::CreateButton::new(&refresh_button_id).emoji('🔄'),
-                    serenity::CreateButton::new(&next_button_id).emoji('▶'),
+                    serenity::CreateButton::new(&prev_id).emoji('◀'),
+                    serenity::CreateButton::new(&next_id).emoji('▶'),
+                    serenity::CreateButton::new(&refresh_id).emoji('🔄').style(serenity::ButtonStyle::Success),
+                    serenity::CreateButton::new(&delete_id).emoji('🗑').style(serenity::ButtonStyle::Danger),
                 ])]),
         )
-        .await;
+        .await?;
 
-    let reply = match reply_result {
-        Ok(r) => r,
-        Err(e) => {
-            eprintln!("Failed to send initial reply: {}", e);
-            return Err(e);
-        }
-    };
+    let message_id = reply.message().await?.id;
+    let mut current_page = 0usize;
+    let mut current_pages = pages;
 
-    let message = match reply.message().await {
-        Ok(msg) => msg,
-        Err(e) => {
-            eprintln!("Failed to get message ID: {}", e);
-            return Err(e);
-        }
-    };
-
-    let message_id = message.id;
-    let mut current_page = 0;
-    let mut current_pages = pages.clone();
-
-    if let Err(_timeout) = tokio::time::timeout(
+    let timed_out = tokio::time::timeout(
         std::time::Duration::from_secs(86400),
         async {
-            while let Some(press) = serenity::ComponentInteractionCollector::new(&ctx.serenity_context())
-                .filter(move |press| press.data.custom_id.starts_with(&ctx_id.to_string()))
+            while let Some(press) = serenity::ComponentInteractionCollector::new(ctx.serenity_context())
+                .filter(move |p| p.data.custom_id.starts_with(&ctx_id.to_string()))
                 .await
             {
-                let custom_id = press.data.custom_id.as_str();
+                let id = press.data.custom_id.clone();
 
-                println!(
-                    "[DEBUG] Interaction from {} ({}) with custom_id: {}",
-                    press.user.name, press.user.id, custom_id
-                );
-
-                if custom_id == next_button_id {
-                    current_page = (current_page + 1) % current_pages.len();
-                } else if custom_id == prev_button_id {
-                    current_page = current_page.checked_sub(1).unwrap_or(current_pages.len() - 1);
-                } else if custom_id == refresh_button_id {
+                if id == refresh_id {
                     if let Err(e) = press.defer(&ctx.serenity_context().http).await {
-                        eprintln!("Failed to defer interaction: {}", e);
+                        eprintln!("Failed to defer refresh: {}", e);
                         continue;
                     }
-
                     match refresh_data().await {
-                        Ok(new_pages) => {
-                            if new_pages.is_empty() {
-                                if let Err(e) = ctx.say("No updated data available.").await {
-                                    eprintln!("Failed to send fallback message: {}", e);
-                                }
-                                continue;
-                            }
-
+                        Ok(new_pages) if !new_pages.is_empty() => {
                             current_pages = new_pages;
                             current_page = 0;
-
-                            if let Err(e) = ctx
+                            let _ = ctx
                                 .channel_id()
                                 .edit_message(
                                     &ctx.serenity_context().http,
@@ -104,32 +145,40 @@ pub async fn paginate<U: std::marker::Sync, E>(
                                     serenity::EditMessage::new()
                                         .embed(
                                             serenity::CreateEmbed::new()
-                                                .description(&current_pages[current_page])
+                                                .description(&current_pages[0])
                                                 .colour(serenity::Colour::DARK_GREEN),
                                         )
                                         .components(vec![serenity::CreateActionRow::Buttons(vec![
-                                            serenity::CreateButton::new(&prev_button_id).emoji('◀'),
-                                            serenity::CreateButton::new(&refresh_button_id).emoji('🔄'),
-                                            serenity::CreateButton::new(&next_button_id).emoji('▶'),
+                                            serenity::CreateButton::new(&prev_id).emoji('◀'),
+                                            serenity::CreateButton::new(&next_id).emoji('▶'),
+                                            serenity::CreateButton::new(&refresh_id).emoji('🔄').style(serenity::ButtonStyle::Success),
+                                            serenity::CreateButton::new(&delete_id).emoji('🗑').style(serenity::ButtonStyle::Danger),
                                         ])]),
                                 )
-                                .await
-                            {
-                                eprintln!("Failed to edit message after refresh: {}", e);
-                            }
-
-                            continue;
+                                .await;
                         }
-                        Err(e) => {
-                            if let Err(err) = ctx.say(format!("Error refreshing data: {}", e)).await {
-                                eprintln!("Failed to send error message: {}", err);
-                            }
-                            continue;
-                        }
+                        Ok(_) => { let _ = ctx.say("No updated data available.").await; }
+                        Err(e) => { let _ = ctx.say(format!("Error refreshing: {}", e)).await; }
                     }
+                    continue;
                 }
 
-                if let Err(e) = press
+                if id == delete_id {
+                    let _ = press.defer(&ctx.serenity_context().http).await;
+                    let _ = ctx
+                        .channel_id()
+                        .delete_message(&ctx.serenity_context().http, message_id)
+                        .await;
+                    return Ok(());
+                }
+
+                if id == next_id {
+                    current_page = (current_page + 1) % current_pages.len();
+                } else if id == prev_id {
+                    current_page = current_page.checked_sub(1).unwrap_or(current_pages.len() - 1);
+                }
+
+                let _ = press
                     .create_response(
                         &ctx.serenity_context().http,
                         serenity::CreateInteractionResponse::UpdateMessage(
@@ -140,113 +189,47 @@ pub async fn paginate<U: std::marker::Sync, E>(
                             ),
                         ),
                     )
-                    .await
-                {
-                    eprintln!("Failed to update interaction response: {}", e);
-                }
+                    .await;
             }
-
             Ok::<(), serenity::Error>(())
         },
     )
-    .await
-    {
-        if let Err(e) = ctx
+    .await;
+
+    // Remove buttons after 24h timeout
+    if timed_out.is_err() {
+        let _ = ctx
             .channel_id()
             .edit_message(
                 &ctx.serenity_context().http,
                 message_id,
-                serenity::EditMessage::new()
-                    .components(vec![]),
+                serenity::EditMessage::new().components(vec![]),
             )
-            .await
-        {
-            eprintln!("[WARN] Failed to remove buttons after timeout: {}", e);
-        }
+            .await;
     }
 
     Ok(())
 }
 
-/// Generate paginated leaderboard pages
-pub fn generate_pages_from_leaderboard(
-    leaderboard: &Leaderboard,
-    period_info: &Value,
-) -> Result<Vec<String>, Error> {
-    let date_str = period_info["periods"][0]["current"]["start"]
-        .as_str()
-        .ok_or("Missing period start date")?;
-    let datetime = DateTime::parse_from_rfc3339(date_str)?.with_timezone(&Utc);
-    let unix_timestamp = datetime.timestamp();
-    let formatted_date = format!("<t:{}:R>", unix_timestamp);
+// ---------------------------------------------------------------------------
+// Slash command
+// ---------------------------------------------------------------------------
 
-    let total_runs: usize = leaderboard.iter().map(|(_, count)| *count).sum();
-
-    let mut sorted = leaderboard.clone();
-    sorted.sort_by(|a, b| b.1.cmp(&a.1));
-
-    Ok(sorted
-        .chunks(8)
-        .enumerate()
-        .map(|(page_idx, chunk)| {
-            let entries = chunk
-                .iter()
-                .map(|(name, count)| format!("- **{}**: {} keys completed", name, count))
-                .collect::<Vec<_>>()
-                .join("\n");
-
-            format!(
-                "**Mythic+ Leaderboard - Page {}/{}**\n\n{}\n\n**Total Runs:** {}\n**Last Reset:** {}",
-                page_idx + 1,
-                (sorted.len() + 7) / 8,
-                entries,
-                total_runs,
-                formatted_date
-            )
-        })
-        .collect())
-}
-
-/// Fetch the current period ID from Raider.IO API
-pub async fn fetch_period_id() -> Result<Value, reqwest::Error> {
-    let client = reqwest::Client::new();
-    let response = client
-        .get("https://raider.io/api/v1/periods")
-        .send()
-        .await?
-        .json::<Value>()
-        .await?;
-    Ok(response)
-}
-
-/// Read the leaderboard from Redis
-async fn read_leaderboard() -> redis::RedisResult<Leaderboard> {
-    let client = redis::Client::open("redis://:sgdbadmin@redis/").unwrap();
-    let mut conn = client.get_connection().unwrap();
-
-    let vec_leaderboard: Vec<(String, usize)> = conn.hgetall("leaderboard")?;
-    Ok(vec_leaderboard)
-}
-
-/// Show the guild's Mythic+ leaderboard for the current week
+/// Show the guild's Mythic+ leaderboard for the current week.
 #[poise::command(slash_command)]
 pub async fn keysdone(ctx: Context<'_>) -> Result<(), Error> {
-    let period_info = fetch_period_id().await?;
-    let leaderboard = read_leaderboard().await?;
-    let initial_pages = generate_pages_from_leaderboard(&leaderboard, &period_info)?;
+    let data = fetch_historical_data().await?;
+    let leaderboard = build_leaderboard(&data);
+    let pages = generate_pages(&leaderboard);
 
-    let refresh_closure = {
-        let http = ctx.serenity_context().http.clone();
-        move || {
-            let _http = http.clone();
-            Box::pin(async move {
-                let new_period = fetch_period_id().await?;
-                let new_board = read_leaderboard().await?;
-                generate_pages_from_leaderboard(&new_board, &new_period)
-            }) as BoxFuture<'static, Result<Vec<String>, Error>>
-        }
+    let refresh_closure = move || {
+        Box::pin(async move {
+            let data = fetch_historical_data().await?;
+            let lb = build_leaderboard(&data);
+            Ok(generate_pages(&lb))
+        }) as BoxFuture<'static, Result<Vec<String>, Error>>
     };
 
-    paginate::<(), ErrorResponse>(ctx, initial_pages, refresh_closure).await?;
+    paginate(ctx, pages, refresh_closure).await?;
     Ok(())
 }
