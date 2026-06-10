@@ -84,6 +84,7 @@ fn format_week_start(iso: &str) -> String {
         .unwrap_or_else(|| iso.to_string())
 }
 
+
 fn generate_pages(entries: &[LeaderboardEntry], week_from: &str) -> Vec<String> {
     if entries.is_empty() {
         return vec![
@@ -99,6 +100,12 @@ fn generate_pages(entries: &[LeaderboardEntry], week_from: &str) -> Vec<String> 
     };
 
     let total_pages = entries.len().div_ceil(8);
+
+    let max_name_len = entries
+        .iter()
+        .map(|e| e.display_name.len())
+        .max()
+        .unwrap_or(0);
 
     entries
         .chunks(8)
@@ -116,22 +123,23 @@ fn generate_pages(entries: &[LeaderboardEntry], week_from: &str) -> Vec<String> 
                         3 => "🥉",
                         _ => "▫️",
                     };
-                    // Untracked characters get a subtle indicator so people
-                    // know they're a raw character, not an aggregated player.
-                    let suffix = if entry.is_player { "" } else { "" }; // text goes next to names 
+                    let suffix = if entry.is_player { "" } else { "" };
+                    let name_col = format!("{}{}", entry.display_name, suffix);
+                    // Inline code span keeps name+count monospace-aligned;
+                    // the medal emoji sits outside it and renders normally.
                     format!(
-                        "{medal} **{}**{} - {} key{}",
-                        entry.display_name,
-                        suffix,
-                        entry.count,
-                        if entry.count == 1 { "" } else { "s" }
+                        "{medal} `{name:<width$}  {count:>3} key{plural}`",
+                        name   = name_col,
+                        width  = max_name_len,
+                        count  = entry.count,
+                        plural = if entry.count == 1 { "" } else { "s" },
                     )
                 })
                 .collect::<Vec<_>>()
                 .join("\n");
 
             format!(
-                "**Mythic+ Leaderboard — Page {}/{}**\n_{}_\n\n{}\n\n**Guild Total:** {} key{}",
+                "**Mythic+ Leaderboard - Page {}/{}**\n_{}_\n\n{}\n\n**Guild Total:** {} key{}",
                 page_idx + 1,
                 total_pages,
                 week_label,
@@ -142,6 +150,7 @@ fn generate_pages(entries: &[LeaderboardEntry], week_from: &str) -> Vec<String> 
         })
         .collect()
 }
+
 
 // ---------------------------------------------------------------------------
 // Pagination (same ◀ 🔄 ▶ 🗑 pattern)
