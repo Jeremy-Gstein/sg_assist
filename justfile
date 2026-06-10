@@ -27,9 +27,9 @@ build:
 # ---------------------------------------------------------------------------
 
 copy:
-    sftp -i {{env_var("SSH_KEY_PATH")}} {{env_var("REMOTE_USER")}}@{{env_var("REMOTE_HOST")}} <<'EOF'
-    put target/release/sg_assistant sg_assist/target/release/sg_assistant
-    EOF
+    scp -i {{env_var("SSH_KEY_PATH")}} \
+        target/release/sg_assistant \
+        {{env_var("REMOTE_USER")}}@{{env_var("REMOTE_HOST")}}:sg_assist/target/release/sg_assistant
     @{{log}} "Copy to remote host complete"
 
 # ---------------------------------------------------------------------------
@@ -60,5 +60,5 @@ logs:
 # Open a shell on the remote host
 # ---------------------------------------------------------------------------
 
-ssh:
+shell:
     ssh -i {{env_var("SSH_KEY_PATH")}} {{env_var("REMOTE_USER")}}@{{env_var("REMOTE_HOST")}}
