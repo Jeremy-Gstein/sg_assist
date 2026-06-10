@@ -118,9 +118,9 @@ fn generate_pages(entries: &[LeaderboardEntry], week_from: &str) -> Vec<String> 
                     };
                     // Untracked characters get a subtle indicator so people
                     // know they're a raw character, not an aggregated player.
-                    let suffix = if entry.is_player { "" } else { " *(char)*" };
+                    let suffix = if entry.is_player { "" } else { "" }; // text goes next to names 
                     format!(
-                        "{medal} **{}**{} — {} key{}",
+                        "{medal} **{}**{} - {} key{}",
                         entry.display_name,
                         suffix,
                         entry.count,
